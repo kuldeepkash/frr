@@ -1,7 +1,7 @@
 #
 # Copyright (c) 2019 by VMware, Inc. ("VMware")
-# Used Copyright (c) 2018 by Network Device Education Foundation, Inc. ("NetDEF")
-# in this file.
+# Used Copyright (c) 2018 by Network Device Education Foundation, Inc.
+# ("NetDEF") in this file.
 #
 # Permission to use, copy, modify, and/or distribute this software
 # for any purpose with or without fee is hereby granted, provided
@@ -20,15 +20,16 @@
 
 import os
 import sys
-import json
-import time
-import errno
-import pytest
 import StringIO
 import traceback
 import ipaddress
 import ConfigParser
 from time import sleep
+from datetime import datetime
+
+# Import topogen and topotest helpers 
+from lib import topotest
+from lib.topogen import Topogen, TopoRouter, get_topogen
 from lib.topolog import logger, logger_config
 
 if sys.version_info >= (3,):
@@ -43,7 +44,6 @@ ADDR_TYPE_IPv6 = 2
 IPv4_UNICAST = 1
 VPNv4_UNICAST = 2
 IPv6_UNICAST = 3
-number_to_router = {}
 FRRCFG_FILE = 'frr_json.conf'
 frr_cfg = {}
 
@@ -51,7 +51,8 @@ frr_cfg = {}
 CD = os.path.dirname(os.path.realpath(__file__))
 pytestini_path = os.path.join(CD, '../pytest.ini')
 
-# NOTE: to save execution logs to log file frrtest_log_dir must be configured in `pytest.ini`.
+# NOTE: to save execution logs to log file frrtest_log_dir must be configured
+# in `pytest.ini`.
 config = ConfigParser.ConfigParser()
 config.read(pytestini_path)
 
@@ -69,7 +70,9 @@ if config.has_option('topogen', 'frrtest_log_dir'):
     logfile_name = "frr_test_bgp_"
     frrtest_log_file = frrtest_log_dir + logfile_name + str(time_stamp)
 
-    logger = logger_config.get_logger(name='test_execution_logs', log_level=loglevel, target=frrtest_log_file)
+    logger = logger_config.get_logger(name='test_execution_logs',
+                                      log_level=loglevel,
+                                      target=frrtest_log_file)
     print "Logs will be sent to logfile: {}".format(frrtest_log_file)
 
 if config.has_option('topogen', 'show_router_config'):
@@ -131,7 +134,8 @@ class FRRConfig:
         try:
             frrcfg = open(self.frrcfg_file, 'w')
         except IOError as err:
-            logger.error('Unable to open FRR Config File. error(%s): %s' % (err.errno, err.strerror))
+            logger.error('Unable to open FRR Config File. error(%s): %s' %
+                         (err.errno, err.strerror))
             return False
 
         frrcfg.write('! FRR General Config\n')
@@ -141,13 +145,14 @@ class FRRConfig:
         # If bgp neighborship is being done using loopback interface -
         # - then we have make the loopback interface reachability up -
         # - for that we are adding static routes -
-        for router, number in number_to_router.iteritems():
-            if number == self.router:
-                neighbors = topo['routers']['{}'.format(router)]["bgp"]['bgp_neighbors']
-                for key, value in neighbors.iteritems():
-                    peer = neighbors[key]['peer']
-                    if "source" in peer and peer['source'] == 'lo':
-                        add_static_route_for_loopback_interfaces('ipv4', router, topo, frrcfg)
+        device = topo['routers']['{}'.format(self.router)]
+        if "bgp" in device:
+            neighbors = device["bgp"]['bgp_neighbors']
+            for key, value in neighbors.iteritems():
+                peer = neighbors[key]['peer']
+                if "source_link" in peer and peer['source_link'] == 'lo':
+                    add_static_route_for_loopback_interfaces(
+                             'ipv4', self.router, topo, frrcfg)
 
         frrcfg.write('! Static Route Config\n')
         frrcfg.write(self.static_routes.getvalue())
@@ -171,14 +176,14 @@ class FRRConfig:
 def create_common_configuration(ADDR_TYPE, tgen, CWD, topo, router):
     """
     It will save routers common configuration to frr.conf file
- 
-    * `ADDR_TYPE` : ip type ipv4/ipv6 
+
+    * `ADDR_TYPE` : ip type ipv4/ipv6
     * `tgen` : Topogen object
     * `CWD`  : caller's current working directory
-    * `topo` : json file data 
+    * `topo` : json file data
     * `router` : current router
     """
-   
+
     try:
         global frr_cfg
         listRouters = []
@@ -187,46 +192,45 @@ def create_common_configuration(ADDR_TYPE, tgen, CWD, topo, router):
 
         listRouters.sort()
 
-        # Creating a dictionary for routers, 'r1': 1, 'r2': 2 ...(respective numbers 
-	# would be used to save router's config)
-        assign_number_to_routers(listRouters)
-
         for curRouter in listRouters:
             if curRouter != router:
                 continue
 
-            # Getting numner to router
-            i = number_to_router[router]
-
             rt_cfg = RoutingPB()
-            fname = '%s/r%d/%s' % (CWD, i, FRRCFG_FILE)
-            frr_cfg[i] = FRRConfig(i, rt_cfg, fname)
+            fname = '{}/{}/{}'.format(CWD, router, FRRCFG_FILE)
+            frr_cfg[router] = FRRConfig(router, rt_cfg, fname)
 
-	    input_dict = topo['routers']
-            if 'link' in topo['routers'][router] or 'lo' in topo['routers'][router]:
-                frr_cfg[i].routing_pb.interfaces_cfg = create_interfaces_cfg(router, topo)
-                interfaces_cfg(frr_cfg[i])
-                frr_cfg[i].print_common_config_to_file(topo)
+            input_dict = topo['routers']
+            if 'links' in topo['routers'][router] or 'lo' in topo['routers'][router]:
+                frr_cfg[router].routing_pb.interfaces_cfg = create_interfaces_cfg(
+                    router, topo)
+                interfaces_cfg(frr_cfg[router])
+                frr_cfg[router].print_common_config_to_file(topo)
                 # Load configuration to router
-                #load_config_to_router(tgen, CWD, router)
-	
-      	    if 'static_routes' in topo['routers'][router]:
-	        result = create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo)
-	        if result != True : assert False, "API: create_static_routes() " + ":Failed \n Error: {}".format(result)
-	
-	    if 'prefix_lists' in topo['routers'][router]:
-	        result = create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo)
-	        if result != True : assert False, "API: create_prefix_lists()" + ":Failed \n Error: {}".format(result)
-	    
-	    if 'route_maps' in topo['routers'][router]:
-		result = create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo)
-	        if result != True : assert False, "API: create_route_maps()" + ":Failed \n Error: {}".format(result)
-    
+                load_config_to_router(tgen, CWD, router)
+
+            if 'static_routes' in topo['routers'][router]:
+                result = create_static_routes(ADDR_TYPE, input_dict, tgen, CWD,
+                                              topo)
+                assert result == True, ("API: create_static_routes() :Failed"
+                                        " \n Error: {}".format(result))
+
+            if 'prefix_lists' in topo['routers'][router]:
+                result = create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD,
+                                             topo)
+                assert result == True, ("API: create_prefix_lists() :Failed "
+                                        "\n Error: {}".format(result))
+
+            if 'route_maps' in topo['routers'][router]:
+                result = create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo)
+                assert result == True, ("API: create_route_maps() :Failed"
+                                        " \n Error: {}".format(result))
+
     except Exception as e:
         logger.error(traceback.format_exc())
         return False
-    
-    return True 
+
+    return True
 
 #############################################
 # Helper classes to save configuration
@@ -275,7 +279,8 @@ def interfaces_cfg(frr_cfg):
 # Helper class for Static route nexthop configuration
 class Nexthop:
 
-    def __init__(self, ip, blackhole = False, admin_distance = 1, if_name = None, tag = None):
+    def __init__(self, ip, blackhole = False, admin_distance = 1,
+                 if_name = None, tag = None):
         self.ip = ip
         self.blackhole = blackhole
         self.admin_distance = admin_distance
@@ -378,7 +383,7 @@ def prefixlist_cfg(frr_cfg, ADDR_TYPE):
         for prefix in prefixlist.prefix:
             le_ge = ""
 
-	    if prefix.network != None:
+            if prefix.network != None:
                 if (prefix.less_or_equal_bits and
                     prefix.network.prefix_length <= prefix.less_or_equal_bits):
                     le_ge = " ".join([le_ge, "le", str(prefix.less_or_equal_bits)])
@@ -390,37 +395,49 @@ def prefixlist_cfg(frr_cfg, ADDR_TYPE):
                 network = IpPrefixMsg_to_str(prefix.network)
                 ip_cmd = get_ip_cmd(prefix.network.afi)
                 frr_cfg.prefix_lists.write(' '.join([
-                    ip_cmd, 'prefix-list', name, 'seq', str(prefix.seq_id), prefix.action, network, le_ge, '\n']))
+                    ip_cmd, 'prefix-list', name, 'seq', str(prefix.seq_id),
+                    prefix.action, network, le_ge, '\n']))
             else:
                 network = 'any'
-		if ADDR_TYPE == "ipv4":
+                if ADDR_TYPE == "ipv4":
                     frr_cfg.prefix_lists.write(' '.join([
-                        'ip', 'prefix-list', name, 'seq', str(prefix.seq_id), prefix.action, network, '\n']))
-		else:
+                        'ip', 'prefix-list', name, 'seq', str(prefix.seq_id),
+                        prefix.action, network, '\n']))
+                else:
                     frr_cfg.prefix_lists.write(' '.join([
-                        'ipv6', 'prefix-list', name, 'seq', str(prefix.seq_id), prefix.action, network, '\n']))
+                        'ipv6', 'prefix-list', name, 'seq', str(prefix.seq_id),
+                        prefix.action, network, '\n']))
 
 # Helper class for Route-Maps configuration
 class RouteMapMatch:
     def __init__(self):
-	self.tag = None
+        self.tag = None
         self.prefix_list = []
         self.community_list = []
+        self.large_community_list = []
 
     def add_prefix_list(self, prefix_list):
         self.prefix_list.append(prefix_list)
 
     def add_community_list(self, community_list):
         self.community_list.append(community_list)
+    
+    def add_large_community_list(self, large_community_list):
+        self.large_community_list.append(large_community_list)
 
 class RouteMapSet:
-    def __init__(self, local_preference, metric, as_path_prepend, community, community_additive, weight):
+    def __init__(self, local_preference=None, metric=None, as_path_prepend=None,
+                 community=None, community_additive=None, weight=None,
+                 large_community=None, set_action=None, med=None):
         self.local_preference = local_preference
         self.metric = metric
         self.as_path_prepend = as_path_prepend
         self.community = community
         self.community_additive = community_additive
         self.weight = weight
+        self.large_community = large_community
+        self.set_action = set_action
+        self.med = med
 
 class RouteMapSeq:
     def __init__(self, match, action, route_map_set):
@@ -444,26 +461,44 @@ def get_action_from_route_map_seq(route_map_seq):
         return 'deny'
 
 def route_map_set_cfg(frr_cfg, route_map_set):
+    # community_additive
+    additive = ''
+    if route_map_set.community_additive:
+        additive = 'additive'
+
     # Local Preference
     if route_map_set.local_preference:
         frr_cfg.route_maps.write(' '.join([
             'set', 'local-preference', str(route_map_set.local_preference), "\n"]))
+
     # Metric
     if route_map_set.metric:
         frr_cfg.route_maps.write(' '.join([
             'set', 'metric', str(route_map_set.metric), "\n"]))
+
     # AS Path Prepend
     if route_map_set.as_path_prepend != None:
         frr_cfg.route_maps.write(' '.join([
             'set', 'as-path', 'prepend', route_map_set.as_path_prepend, "\n"]))
+
     # Community
     if route_map_set.community:
-        # community_additive
-        additive = ''
-        if route_map_set.community_additive:
-            additive = 'additive'
         frr_cfg.route_maps.write(' '.join([
-            'set', 'community', route_map_set.community, additive, "\n"]))
+            'set', 'community', route_map_set.community, additive, set_action, "\n"]))
+
+    # Large-Community with delete
+    if route_map_set.set_action != None and route_map_set.set_action == "delete":
+        if route_map_set.large_community:
+            frr_cfg.route_maps.write(' '.join(
+                ['set', 'large-comm-list', route_map_set.large_community,
+                 route_map_set.set_action, "\n"]))
+    else:
+        # Large-Community
+        if route_map_set.large_community:
+            frr_cfg.route_maps.write(' '.join(
+                ['set', 'large-community', route_map_set.large_community,
+                additive, "\n"]))
+
     # Weight
     if route_map_set.weight:
         frr_cfg.route_maps.write(' '.join([
@@ -479,11 +514,13 @@ def handle_match_prefix_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE):
     # IPv4
     if ADDR_TYPE == 'ipv4':
         seq_id = frr_cfg.get_route_map_seq_id()
-        frr_cfg.route_maps.write(' '.join(['route-map', name, action, str(seq_id), "\n"]))
+        frr_cfg.route_maps.write(' '.join(['route-map', name, action,
+                                           str(seq_id), "\n"]))
         # MATCH
-    	for prefix_list in route_map_seq.match.prefix_list:
+        for prefix_list in route_map_seq.match.prefix_list:
             frr_cfg.route_maps.write(' '.join([
-                'match', 'ip', 'address', 'prefix-list', prefix_list.prefix_list_uuid_name, '\n']))
+                'match', 'ip', 'address', 'prefix-list',
+                prefix_list.prefix_list_uuid_name, '\n']))
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
@@ -491,11 +528,13 @@ def handle_match_prefix_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE):
     else:
         # IPv6
         seq_id = frr_cfg.get_route_map_seq_id()
-        frr_cfg.route_maps.write(' '.join(['route-map', name, action, str(seq_id), "\n"]))
+        frr_cfg.route_maps.write(' '.join(['route-map', name, action,
+                                           str(seq_id), "\n"]))
         # MATCH
-    	for prefix_list in route_map_seq.match.prefix_list:
+        for prefix_list in route_map_seq.match.prefix_list:
             frr_cfg.route_maps.write(' '.join([
-                'match', 'ipv6', 'address', 'prefix-list', prefix_list.prefix_list_uuid_name, '\n']))
+                'match', 'ipv6', 'address', 'prefix-list',
+                prefix_list.prefix_list_uuid_name, '\n']))
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
@@ -504,37 +543,55 @@ def handle_match_tag(frr_cfg, routemap, route_map_seq, ADDR_TYPE):
     name = routemap.route_map_uuid_name
     action = get_action_from_route_map_seq(route_map_seq)
     # MATCH
-        
+
     # IPv4
     if ADDR_TYPE == 'ipv4':
         seq_id = frr_cfg.get_route_map_seq_id()
-        frr_cfg.route_maps.write(' '.join(['route-map', name, action, str(seq_id), "\n"]))
+        frr_cfg.route_maps.write(' '.join(['route-map', name, action,
+                                           str(seq_id), "\n"]))
         frr_cfg.route_maps.write(' '.join([
-    	    'match', 'tag', str(route_map_seq.match.tag), '\n']))
-    	# SET
+            'match', 'tag', str(route_map_seq.match.tag), '\n']))
+        # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
 
     else:
         # IPv6
         seq_id = frr_cfg.get_route_map_seq_id()
-        frr_cfg.route_maps.write(' '.join(['route-map', name, action, str(seq_id), "\n"]))
+        frr_cfg.route_maps.write(' '.join(['route-map', name, action,
+                                           str(seq_id), "\n"]))
         frr_cfg.route_maps.write(' '.join([
-    	    'match', 'tag', str(route_map_seq.match.tag), '\n']))
+            'match', 'tag', str(route_map_seq.match.tag), '\n']))
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
 
-def handle_match_community_list(frr_cfg, routemap, route_map_seq):
+def handle_match_community_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE):
     name = routemap.route_map_uuid_name
     action = get_action_from_route_map_seq(route_map_seq)
     # MATCH
     for community in route_map_seq.match.community_list:
         # IPv4
         seq_id = frr_cfg.get_route_map_seq_id()
-        frr_cfg.route_maps.write(' '.join(['route-map', name, action, str(seq_id), "\n"]))
+        frr_cfg.route_maps.write(' '.join(['route-map', name, action,
+                                           str(seq_id), "\n"]))
         frr_cfg.route_maps.write(' '.join([
-            'match', 'community', community.comm_list_uuid_name, '\n']))
+            'match', 'community', community, '\n']))
+        # SET
+        handle_route_map_seq_set(frr_cfg, route_map_seq)
+        frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
+
+def handle_match_large_community_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE):
+    name = routemap.route_map_uuid_name
+    action = get_action_from_route_map_seq(route_map_seq)
+    # MATCH
+    for community in route_map_seq.match.large_community_list:
+        # IPv4
+        seq_id = frr_cfg.get_route_map_seq_id()
+        frr_cfg.route_maps.write(' '.join(['route-map', name, action,
+                                           str(seq_id), "\n"]))
+        frr_cfg.route_maps.write(' '.join([
+            'match', 'large-community', community, '\n']))
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
@@ -553,17 +610,22 @@ def routemap_cfg(frr_cfg, ADDR_TYPE):
         return
     for routemap in frr_cfg.routing_pb.route_maps:
         for route_map_seq in routemap.route_map_seq:
-            # Match by Prefix List
-            if len(route_map_seq.match.prefix_list) > 0:
-                handle_match_prefix_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
-	    elif route_map_seq.match.tag != None: 
-                handle_match_tag(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
-            # Match by Community
-            elif len(route_map_seq.match.community_list) > 0:
-                handle_match_community_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
             # No Match - Only Set
+            if route_map_seq.match == None:
+                handle_no_match_set_only(frr_cfg, routemap, route_map_seq)
             else:
-                handle_no_match_set_only(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
+                # Match by Prefix List
+                if len(route_map_seq.match.prefix_list) > 0:
+                    handle_match_prefix_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
+                # Match by tag
+                elif route_map_seq.match.tag != None:
+                    handle_match_tag(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
+                # Match by Community
+                elif len(route_map_seq.match.community_list) > 0:
+                    handle_match_community_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
+                # Match by large-Community
+                elif len(route_map_seq.match.large_community_list) > 0:
+                    handle_match_large_community_list(frr_cfg, routemap, route_map_seq, ADDR_TYPE)
 
 #############################################
 # Common APIs, will be used by all protocols
@@ -612,12 +674,12 @@ def IpPrefixMsg_to_str(addr, subnet = True):
     return ip_string
 
 def IpAddressMsg_to_str(addr):
-    """ Returns Ip address to str as per the input ip type 
+    """ Returns Ip address to str as per the input ip type
 
     ```
     * "addr": ip type ipv4/ipv6
     """
- 
+
     if addr.afi == ADDR_TYPE_IPv4:
         return addr.ipv4
     else:
@@ -633,7 +695,8 @@ def number_to_row(routerName):
 def number_to_column(routerName):
     """
     Returns the number for the router.
-    Calculation based on name a0 = columnn 0, a1 = column 0, b2= column 1, z23 = column 26 etc
+    Calculation based on name a0 = columnn 0, a1 = column 0, b2= column 1,
+    z23 = column 26 etc
     """
     return ord(routerName[0]) - 97
 
@@ -641,13 +704,14 @@ def generate_ips(ADDR_TYPE, start_ip, no_of_ips):
     """
     Returns list of IPs.
     based on start_ip and no_of_ips
-    
+
     * `ADDR_TYPE` : to identify ip address type ex- ipv4/ipv6
-    * `start_ip`  : from here the ip will start generating, start_ip will be first ip
+    * `start_ip`  : from here the ip will start generating, start_ip will be
+                    first ip
     * `no_of_ips` : these many IPs will be generated
 
     Limitation: It will generate IPs only for ip_mask 32
-    
+
     """
 
     if '/' in start_ip:
@@ -667,49 +731,110 @@ def generate_ips(ADDR_TYPE, start_ip, no_of_ips):
 
     return ipaddress_list
 
-def assign_number_to_routers(listRouters):
-    """
-    It will assign numbers to router ex- r1:1, r2:2.....r10:10
-    these number would be used to save/access configuration in/from frr.conf file.
-    """
-    for routerNumber, routerName in enumerate(listRouters, 1):
-        number_to_router[routerName] = routerNumber
-
 def find_interface_with_greater_ip(ADDR_TYPE, topo, router):
-    """  
+    """
     Returns highest interface ip for ipv4/ipv6
- 
+
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `topo`  : json file data
-    * `router` : router for which hightest interface should be calculated 
+    * `router` : router for which hightest interface should be calculated
     """
 
+    link_data = topo['routers'][router]['links']
     if ADDR_TYPE == "ipv4":
         if 'lo' in topo['routers'][router]:
             return topo['routers'][router]['lo']['ipv4'].split('/')[0]
         interfaces_list = []
-        for destRouter  in sorted(topo['routers'][router]['links'].iteritems()):
+        for destRouter  in sorted(link_data.iteritems()):
             for link in topo['routers'][curRouter]['links'][destRouter[0]].iteritems():
-                if 'ipv4' in topo['routers'][router]['links'][destRouter[0]][link[0]]:
-                    ip_address = topo['routers'][router]['links'][destRouter[0]][link[0]]['ipv4'].split('/')[0]
+                if 'ipv4' in link_data[destRouter[0]][link[0]]:
+                    ip_address = link_data[destRouter[0]][link[0]]['ipv4'].split('/')[0]
                     interfaces_list.append(ipaddress.IPv4Address(ip_address))
     else:
         if 'lo' in topo['routers'][router]:
             ip_address = topo['routers'][router]['lo']['ipv6'].split('/')[0]
             return ipaddress.IPv4Address(ip_address)
         interfaces_list = []
-        for destRouter in sorted(topo['routers'][router]['links'].iteritems()):
+        for destRouter in sorted(link_data.iteritems()):
             for link in topo['routers'][curRouter]['links'][destRouter[0]].iteritems():
-                if 'ipv6' in topo['routers'][router]['links'][destRouter[0]][link[0]]:
-                    ip_address = topo['routers'][router]['links'][destRouter[0]][link[0]]['ipv6'].split('/')[0]
+                if 'ipv6' in link_data[destRouter[0]][link[0]]:
+                    ip_address = link_data[destRouter[0]][link[0]]['ipv6'].split('/')[0]
                     interfaceis_list.append(ipaddress.IPv4Address(ip_address))
 
     return sorted(interfaces_list)[-1]
 
+def start_topology(tgen, CWD):
+    """
+    Starting topology, create tmp files which are loaded to routers
+    to start deamons and then start routers
+
+    * `tgen`  : topogen object
+    * `CWD` : Caller's current working directory
+    """
+
+    # Starting topology
+    tgen.start_topology()
+
+    # Starting deamons
+    router_list = tgen.routers()
+    for rname, router in router_list.iteritems():
+        try:
+            os.chdir(CWD)
+            # Deleting router named dirs if exists
+            if os.path.exists('{}'.format(rname)):
+                os.system("rm -rf {}".format(rname))
+
+            # Creating rouer named dir and empty zebra.conf bgpd.conf files
+            # inside the current directory
+            os.mkdir('{}'.format(rname))
+            os.chdir('{}/{}'.format(CWD, rname))
+            os.system('touch zebra.conf bgpd.conf')
+
+        except IOError as (errno, strerror):
+            logger.error("I/O error({0}): {1}".format(errno, strerror))
+
+        # Loading empty zebra.conf file to router, to start the zebra deamon
+        router.load_config(
+            TopoRouter.RD_ZEBRA,
+            '{}/{}/zebra.conf'.format(CWD, rname)
+            #os.path.join(CWD, '{}/zebra.conf'.format(rname))
+        )
+        # Loading empty bgpd.conf file to router, to start the bgp deamon
+        router.load_config(
+            TopoRouter.RD_BGP,
+            '{}/{}/bgpd.conf'.format(CWD, rname)
+            #os.path.join(CWD, '{}/bgpd.conf'.format(rname))
+        )
+
+    # Starting routers
+    logger.info("Starting all routers once topology is created")
+    tgen.start_router()
+
+def stop_topology(tgen, CWD):
+    """
+    It will stop topology and remove temporary dirs and files.
+
+    * `tgen`  : topogen object
+    * `CWD` : Caller's current working directory
+    """
+
+    # This function tears down the whole topology.
+    tgen.stop_topology()
+
+    # Removing tmp dirs and files, once the topology is deleted
+    router_list = tgen.routers()
+    for rname, router in router_list.iteritems():
+        try:
+            os.chdir(CWD)
+            os.system("rm -rf {}".format(rname))
+        except IOError as (errno, strerror):
+            logger.error("I/O error({0}): {1}".format(errno, strerror))
+
 def load_config_to_router(tgen, CWD, routerName):
-    """ 
-    This API is to create a delta of running config and user defined config, upload the delta config to router. 
- 
+    """
+    This API is to create a delta of running config and user defined config,
+    upload the delta config to router.
+
     * `tgen` : Topogen object
     * `CWD`  : caller's current working directory
     * `routerName` : router for which delta config should be generated and uploaded
@@ -742,22 +867,27 @@ def load_config_to_router(tgen, CWD, routerName):
                     filenames = ['bgp_json.conf', 'frr_json.conf']
                     with open('{}/{}/frr.conf'.format(CWD, rname), 'w') as cfg:
                         for f_name in filenames:
-			    if os.path.exists('{}/{}/{}'.format(CWD, rname, f_name)):
-                                with open('{}/{}/{}'.format(CWD, rname, f_name), 'r') as infile:
+                            if os.path.exists('{}/{}/{}'.format(CWD, rname, f_name)):
+                                with open('{}/{}/{}'.format(CWD, rname, f_name),
+                                          'r') as infile:
                                     for line in infile:
                                         cfg.write(line)
                 except IOError as err:
-                   logger.warning('Unable to open config File. error(%s): %s' % (err.errno, err.strerror))
+                   logger.warning('Unable to open config File. error(%s): %s' %
+                                  (err.errno, err.strerror))
                    return False
 
-                command = '/usr/lib/frr/frr-reload.py  --input {}/{}/frr.sav --test {}/{}/frr.conf > \
-				{}'.format(CWD, rname, CWD, rname, dname)
+                command = '/usr/lib/frr/frr-reload.py  --input {}/{}/frr.sav' \
+                          ' --test {}/{}/frr.conf > {}'.format(CWD, rname, CWD,
+                                                               rname, dname)
                 result = os.system(command)
 
                 # Assert if command fail
                 if result != 0:
                     command_output = False
-                    assert command_output, 'Command:{} is failed due to non-zero exit code'.format(command)
+                    assert command_output, ('Command:{} is failed due to '
+                                            'non-zero exit code'.format(
+                        command))
 
                 f = open(dname, 'r')
                 delta = StringIO.StringIO()
@@ -785,8 +915,8 @@ def load_config_to_router(tgen, CWD, routerName):
                     delta.write(line)
                     delta.write('\n')
 
-                # Router current configuration to log file or console if "show_router_config"
-		#  is defined in "pytest.ini"
+                # Router current configuration to log file or console if
+                # "show_router_config" is defined in "pytest.ini"
                 if show_router_config:
                     logger.info(delta.getvalue())
                 delta.close()
@@ -804,28 +934,29 @@ def create_interfaces_cfg(curRouter, topo):
     """ Create interface configuration for created topology and
         save the configuration to frr.conf file. Basic Interface configuration
         is provided in input json file.
-    
+
     * `curRouter` : router for which interface config should be created
     * `topo` : json file data
     """
 
     try:
         interfaces = Interfaces()
-        if 'lo' in topo['routers'][curRouter]:
+        c_router = topo['routers'][curRouter]
+        if 'lo' in c_router:
             interface_name = 'lo'
             lo_addresses = []
-            if 'ipv4' in topo['routers'][curRouter]['lo']:
-                lo_addresses.append(topo['routers'][curRouter]['lo']['ipv4'])
-            if 'ipv6' in topo['routers'][curRouter]['lo']:
-                lo_addresses.append(topo['routers'][curRouter]['lo']['ipv6'])
+            if 'ipv4' in c_router['lo']:
+                lo_addresses.append(c_router['lo']['ipv4'])
+            if 'ipv6' in c_router['lo']:
+                lo_addresses.append(c_router['lo']['ipv6'])
             interfaces.add_interface(interface_name, lo_addresses)
-        for destRouterLink, data in sorted(topo['routers'][curRouter]['links'].iteritems()):
-            interface_name = topo['routers'][curRouter]['links'][destRouterLink]['interface']
+        for destRouterLink, data in sorted(c_router['links'].iteritems()):
+            interface_name = c_router['links'][destRouterLink]['interface']
             int_addresses = []
-            if 'ipv4' in topo['routers'][curRouter]['links'][destRouterLink]:
-                int_addresses.append(topo['routers'][curRouter]['links'][destRouterLink]['ipv4'])
-            if 'ipv6' in topo['routers'][curRouter]['links'][destRouterLink]:
-                int_addresses.append(topo['routers'][curRouter]['links'][destRouterLink]['ipv6'])
+            if 'ipv4' in c_router['links'][destRouterLink]:
+                int_addresses.append(c_router['links'][destRouterLink]['ipv4'])
+            if 'ipv6' in c_router['links'][destRouterLink]:
+                int_addresses.append(c_router['links'][destRouterLink]['ipv6'])
             interfaces.add_interface(interface_name, int_addresses)
 
     except Exception as e:
@@ -835,32 +966,33 @@ def create_interfaces_cfg(curRouter, topo):
     return interfaces
 
 def add_static_route_for_loopback_interfaces(ADDR_TYPE, curRouter, topo, frrcfg):
-    """ 
-    Add static routes for loopback interfaces reachability, It will add static routes in current 
-    router for other router's loopback interfaces os the reachability will be up and so will BGP neighborship. 
-    
+    """
+    Add static routes for loopback interfaces reachability, It will add static
+    routes in current router for other router's loopback interfaces os the
+    reachability will be up and so will BGP neighborship.
+
     * `ADDR_TYPE` : ip type, ipv4/ipv6
     * `curRouter` : Device Under Test
     * `topo` : json file data
     * `frrcfg` : frr config file
     """
 
-    for bgp_neighbor in topo['routers'][curRouter]['bgp']['bgp_neighbors'].keys():
-        if topo['routers'][curRouter]['bgp']['bgp_neighbors'][bgp_neighbor]['peer']['source'] == 'lo':
-    	    ip_addr = topo['routers'][bgp_neighbor]['lo'][ADDR_TYPE]
-            destRouterLink = topo['routers'][curRouter]['bgp']['bgp_neighbors'][bgp_neighbor]['peer']['link']
-            next_hop = topo['routers'][bgp_neighbor]['links'][destRouterLink][ADDR_TYPE].split("/")[0]
+    bgp_neighbors = topo['routers'][curRouter]['bgp']['bgp_neighbors']
+    for bgp_neighbor in bgp_neighbors.keys():
+        ip_addr = topo['routers'][bgp_neighbor]['lo'][ADDR_TYPE]
+        destRouterLink = bgp_neighbors[bgp_neighbor]['peer']['dest_link']
+        next_hop = topo['routers'][bgp_neighbor]['links']\
+ 		       [destRouterLink][ADDR_TYPE].split("/")[0]
 
-            if ADDR_TYPE == "ipv4":
-                frrcfg.write("ip route " + ip_addr + " " + next_hop + "\n")
-            else:
-                frrcfg.write("ipv6 route " + ip_addr + " " + next_hop + "\n")
-
+        if ADDR_TYPE == "ipv4":
+            frrcfg.write("ip route " + ip_addr + " " + next_hop + "\n")
+        else:
+            frrcfg.write("ipv6 route " + ip_addr + " " + next_hop + "\n")
 
 def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
-    """ 
+    """
     Create  static routes for given router as defined in input_dict
-    
+
     * `ADDR_TYPE` : ip type, ipv4/ipv6
     * `input_dict` : input to create static routes for given router
     * `tgen` : Topogen object
@@ -869,21 +1001,23 @@ def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
 
     try:
-	global frr_cfg
+        global frr_cfg
         for router in input_dict.keys():
-	    if "static_routes" in input_dict[router]:
+            if "static_routes" in input_dict[router]:
                 static_routes_list = []
-   
-                # Getting number for router
-                i = number_to_router[router]
 
                 # Reset config for routers
-                frr_cfg[i].reset_it()
+                frr_cfg[router].reset_it()
 
-		static_routes = input_dict[router]["static_routes"]
+                static_routes = input_dict[router]["static_routes"]
                 for static_route in static_routes:
-		    network = static_route["network"] 
-                    no_of_ip = static_route["no_of_ip"]
+                    network = static_route["network"]
+                    # No of IPs
+                    if "no_of_ip" in static_route:
+                        no_of_ip = static_route["no_of_ip"]
+                    else:
+                        no_of_ip = 0
+
                     if "admin_distance" in static_route:
                         admin_distance = static_route["admin_distance"]
                     else:
@@ -915,11 +1049,11 @@ def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
                         route.add_nexthop(nh, None, admin_distance, if_name, tag)
 
                         static_routes_list.append(route)
-                        frr_cfg[i].routing_pb.static_route = static_routes_list
+                        frr_cfg[router].routing_pb.static_route = static_routes_list
 
-                interfaces_cfg(frr_cfg[i])
-                static_rt_cfg(frr_cfg[i])
-                frr_cfg[i].print_common_config_to_file(topo)
+                interfaces_cfg(frr_cfg[router])
+                static_rt_cfg(frr_cfg[router])
+                frr_cfg[router].print_common_config_to_file(topo)
                 # Load configuration to router
                 load_config_to_router(tgen, CWD, router)
 
@@ -927,42 +1061,40 @@ def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
-        
+
     return True
 
 def modify_admin_distance_for_static_routes(input_dict, CWD, tgen, topo):
     """
     Modify admin distance for given static route/s
-    
+
     * `input_dict` :  for which static route/s admin distance should modified
     * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
     """
-    logger.info("Entering lib API: modify_admin_distance_for_static_routes()")   
+    logger.info("Entering lib API: modify_admin_distance_for_static_routes()")
 
     try:
         for router in input_dict.keys():
-            # Getting number for router
-            i = number_to_router[router]
-
             # Reset config for routers
-            frr_cfg[i].reset_it()
-	    
-	    for static_route in input_dict[router].keys():
+            frr_cfg[router].reset_it()
+
+            for static_route in input_dict[router].keys():
                 next_hop = input_dict[router][static_route]['next_hop']
                 admin_distance = input_dict[router][static_route]['admin_distance']
-           
- 	        for st in frr_cfg[i].routing_pb.static_route:
-		    st_ip_prefix = IpAddressMsg_to_str(st.prefix)
-		    for nh in st.nexthops:
-		        if st_ip_prefix == static_route and IpAddressMsg_to_str(nh.ip) == next_hop:
-            	            nh.admin_distance = admin_distance
-	        
-	    interfaces_cfg(frr_cfg[i])
-            static_rt_cfg(frr_cfg[i])
-            frr_cfg[i].print_common_config_to_file(topo)
-    	    # Load config to router
+
+                for st in frr_cfg[router].routing_pb.static_route:
+                    st_ip_prefix = IpAddressMsg_to_str(st.prefix)
+                    for nh in st.nexthops:
+                        if st_ip_prefix == static_route and \
+                                IpAddressMsg_to_str(nh.ip) == next_hop:
+                            nh.admin_distance = admin_distance
+
+            interfaces_cfg(frr_cfg[router])
+            static_rt_cfg(frr_cfg[router])
+            frr_cfg[router].print_common_config_to_file(topo)
+            # Load config to router
             load_config_to_router(tgen, CWD, router)
 
     except Exception as e:
@@ -989,12 +1121,9 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     try:
         for router in input_dict.keys():
             if "prefix_lists" in input_dict[router]:
-                # Getting number for router
-                i = number_to_router[router]
-    
                 # Reset config for routers
-                frr_cfg[i].reset_it()
-    
+                frr_cfg[router].reset_it()
+
                 for prefix_list in input_dict[router]['prefix_lists'].keys():
                     for prefix_dict in input_dict[router]['prefix_lists'][prefix_list]:
                         network_addr = prefix_dict['network']
@@ -1003,17 +1132,17 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                             le = prefix_dict['le']
                         else:
                             le = None
-    
+
                         if 'ge' in prefix_dict:
                             ge = prefix_dict['ge']
                         else:
                             ge = None
-    
+
                         if 'seqid' in prefix_dict:
                             seqid = prefix_dict['seqid']
                         else:
                             seqid = None
-    
+
                         if network_addr != 'any':
                             # IP from network, removing mask
                             ip = network_addr.split("/")[0]
@@ -1021,7 +1150,7 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                         else:
                             ip = 'any'
                             mask = None
-    
+
                         if ip != 'any':
                             if ADDR_TYPE == 'ipv4':
                                 net = Network(ADDR_TYPE_IPv4, ip, None, int(mask))
@@ -1029,16 +1158,16 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                                 net = Network(ADDR_TYPE_IPv6, None, ip, int(mask))
                         else:
                             net = None
-    
+
                         pfx = Pfx(le, ge, action, net, seqid)
                         pfx_l = PrefixList(prefix_list)
                         pfx_l.add_pfx(pfx)
-                        frr_cfg[i].routing_pb.prefix_lists.append(pfx_l)
-    
-                interfaces_cfg(frr_cfg[i])
-                static_rt_cfg(frr_cfg[i])
-                prefixlist_cfg(frr_cfg[i], ADDR_TYPE)
-                frr_cfg[i].print_common_config_to_file(topo)
+                        frr_cfg[router].routing_pb.prefix_lists.append(pfx_l)
+
+                interfaces_cfg(frr_cfg[router])
+                static_rt_cfg(frr_cfg[router])
+                prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
+                frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
                 load_config_to_router(tgen, CWD, router)
     except Exception as e:
@@ -1052,37 +1181,55 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
 def delete_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
     Delete ip prefix lists
-    
+
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
-    * `input_dict` :  for which static route/s admin distance should modified
+    * `input_dict` :  for which router pf_list has to be deleted 
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
     logger.info("Entering lib API: delete_prefix_lists()")
-	
+
     try:
-	global frr_cfg
-        for router in input_dict.keys():
-            # Getting number for router
-            i = number_to_router[router]
+        global frr_cfg
+        for dut in input_dict.keys():
+            for router, rnode in tgen.routers().iteritems():
+                if router != dut:
+                    continue
 
-            # Reset config for routers
-            frr_cfg[i].reset_it()
+                # Reset config for routers
+                frr_cfg[router].reset_it()
 
-            prefix_lists = input_dict[router]["prefix_lists"]
-	    for prefix_list in prefix_lists:
-   	        for pfx_l in frr_cfg[i].routing_pb.prefix_lists:
-        	    if pfx_l.prefix_list_uuid_name == prefix_list:
-                        frr_cfg[i].routing_pb.prefix_lists.remove(pfx_l)
+                seq_id = []
+                for pfx_l in frr_cfg[router].routing_pb.prefix_lists:
+                    for pfx in pfx_l.prefix:
 
-            interfaces_cfg(frr_cfg[i])
-            prefixlist_cfg(frr_cfg[i], ADDR_TYPE)
-            frr_cfg[i].print_common_config_to_file(topo)
-            # Load config to router
-            load_config_to_router(tgen, CWD, router)
+                        seq_id.append(pfx.seq_id)
+
+                prefix_lists = input_dict[router]["prefix_lists"]
+                for seqid in seq_id:
+                    found = False
+                    for pfx_list_name in prefix_lists:
+                        for pfx_l in frr_cfg[router].routing_pb.prefix_lists:
+                            if pfx_l.prefix_list_uuid_name == pfx_list_name:
+                                found = True
+                                for pfx in pfx_l.prefix:
+                                    if pfx.seq_id == seqid:
+                                        pfx_l.prefix.remove(pfx)
+                                        if len(pfx_l.prefix) == 0:
+                                            frr_cfg[router].routing_pb.prefix_lists.remove(pfx_l)
+            if not found:
+                errormsg = ("Prefix list {} not found in router {}".
+                            format(pfx_list_name, router))
+                return errormsg
+
+                interfaces_cfg(frr_cfg[router])
+                prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
+                frr_cfg[router].print_common_config_to_file(topo)
+                # Load config to router
+                load_config_to_router(tgen, CWD, router)
     except Exception as e:
-	errormsg = traceback.format_exc()
+        errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
 
@@ -1092,8 +1239,8 @@ def delete_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
 def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
     Modify prefix lists
-   
-    * `ADDR_TYPE`  : ip type, ipv4/ipv6 
+
+    * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
@@ -1103,11 +1250,8 @@ def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
 
     try:
         for router in input_dict.keys():
-            # Getting number for router
-            i = number_to_router[router]
-
             # Reset config for routers
-            frr_cfg[i].reset_it()
+            frr_cfg[router].reset_it()
 
             for prefix_list in input_dict[router]['prefix_lists'].keys():
                 for prefix_dict in input_dict[router]['prefix_lists'][prefix_list]:
@@ -1144,21 +1288,21 @@ def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                     else:
                         net = None
 
-                    for pfx_l in frr_cfg[i].routing_pb.prefix_lists:
+                    for pfx_l in frr_cfg[router].routing_pb.prefix_lists:
                         if pfx_l.prefix_list_uuid_name == prefix_list:
                             for pfx in pfx_l.prefix:
                                 if seqid != None:
                                     if pfx.seq_id == seqid:
-		 			pfx.network = net
-					pfx.less_or_equal_bits = le
-        				pfx.greater_or_equal_bits = ge
-        				pfx.action = action
-        				pfx.seqid = seqid
+                                        pfx.network = net
+                                        pfx.less_or_equal_bits = le
+                                        pfx.greater_or_equal_bits = ge
+                                        pfx.action = action
+                                        pfx.seqid = seqid
 
-            interfaces_cfg(frr_cfg[i])
-            static_rt_cfg(frr_cfg[i])
-            prefixlist_cfg(frr_cfg[i], ADDR_TYPE)
-            frr_cfg[i].print_common_config_to_file(topo)
+            interfaces_cfg(frr_cfg[router])
+            static_rt_cfg(frr_cfg[router])
+            prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
+            frr_cfg[router].print_common_config_to_file(topo)
             # Load config to router
             load_config_to_router(tgen, CWD, router)
 
@@ -1172,7 +1316,7 @@ def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
 
 def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
-    Create ip prefix lists
+    Create route mapss
 
     * `ADDR_TYPE`  : ip_type, ipv4/ipv6
     * `input_dict` :  for which static route/s admin distance should modified
@@ -1186,72 +1330,109 @@ def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
     try:
         for router in input_dict.keys():
             if "route_maps" in input_dict[router]:
-                # Getting number for router
-                i = number_to_router[router]
-    
                 # Reset config for routers
-                frr_cfg[i].reset_it()
-    
+                frr_cfg[router].reset_it()
+
                 for rmap_name in input_dict[router]["route_maps"].keys():
-		    for rmap_dict in input_dict[router]["route_maps"][rmap_name]:
+                    for rmap_dict in input_dict[router]["route_maps"][rmap_name]:
                         rmap_action = rmap_dict["action"]
-    
+
                         if rmap_action == 'PERMIT':
                             rmap_action = PERMIT
                         else:
                             rmap_action = DENY
-    
+
                         rmap = RouteMap(rmap_name)
-                        frr_cfg[i].routing_pb.route_maps.append(rmap)
-    
+                        frr_cfg[router].routing_pb.route_maps.append(rmap)
+
                         # Verifying if SET criteria is defined
                         if 'set' in rmap_dict:
                             if 'localpref' in rmap_dict["set"]:
                                 local_preference = rmap_dict["set"]['localpref']
                             else:
                                 local_preference = None
-    
-	                    if 'med' in rmap_dict["set"]:
+
+                            if 'med' in rmap_dict["set"]:
                                 metric = rmap_dict["set"]['med']
                             else:
-                	        metric = None
-    
+                                metric = None
+
                             if 'aspath' in rmap_dict["set"]:
                                 as_path = rmap_dict["set"]['aspath']
                             else:
                                 as_path = None
-    
+
                             if 'weight' in rmap_dict["set"]:
                                 weight = rmap_dict["set"]['weight']
                             else:
                                 weight = None
-    
-                            set_criteria = RouteMapSet(local_preference, metric, as_path, None, None, weight)
+
+                            if 'community' in rmap_dict["set"]:
+                                community = rmap_dict["set"]['community']
+                            else:
+                                community = None
+
+                            if 'large_community' in rmap_dict["set"]:
+                                large_community = rmap_dict["set"]['large_community']
+                            else:
+                                large_community = None
+
+                            if 'set_action' in rmap_dict["set"]:
+                                set_action = rmap_dict["set"]['set_action']
+                            else:
+                                set_action = None
+			    
+			    if 'community_additive' in rmap_dict["set"]:
+                                community_additive = rmap_dict["set"]['community_additive']
+                            else:
+                                community_additive = None
+
+                            set_criteria = RouteMapSet(local_preference, metric,
+                                                 as_path, community, community_additive,
+                                                 weight, large_community, set_action)
                         else:
                             set_criteria = None
-    
-                        # Adding MATCH and SET sequence to RMAP if match criteria is defined
+
+                        # Adding MATCH and SET sequence to RMAP if defined
                         if "match" in rmap_dict:
                             match = RouteMapMatch()
                             for match_criteria in rmap_dict["match"].keys():
                                 if match_criteria == 'prefix_list':
-                                    prefix_lists = []
                                     pfx_list = rmap_dict["match"][match_criteria]
-                                    for prefix_list in frr_cfg[i].routing_pb.prefix_lists:
-    					if prefix_list.prefix_list_uuid_name == pfx_list:
-				            prefix_lists.append(prefix_list)
-            			    	    match.prefix_list = prefix_lists
+                                    for prefix_list in frr_cfg[router].routing_pb.\
+                                            prefix_lists:
+                                        prefix_lists = []
+                                        if prefix_list.prefix_list_uuid_name == pfx_list:
+                                            prefix_lists.append(prefix_list)
+                                            match.prefix_list = prefix_lists
                                             rmap.add_seq(match, rmap_action, set_criteria)
+                                elif match_criteria == 'community-list':
+				    community_lists = []
+                                    communities = rmap_dict["match"][match_criteria]
+				    for community in communities:
+                                        community_lists.append(community)
+                                        match.community_list = community_lists
+                                    rmap.add_seq(match, rmap_action, set_criteria)
+                                elif match_criteria == 'large-community-list':
+				    large_community_lists = []
+                                    large_communities = rmap_dict["match"][match_criteria]
+				    for large_community in large_communities:
+                                        large_community_lists.append(large_community)
+                                        match.large_community_list = large_community_lists
+                                    rmap.add_seq(match, rmap_action, set_criteria)
                                 elif match_criteria == 'tag':
                                     tag = rmap_dict["match"][match_criteria]
                                     match.tag = tag
                                     rmap.add_seq(match, rmap_action, set_criteria)
-    
-                interfaces_cfg(frr_cfg[i])
-                static_rt_cfg(frr_cfg[i])
-                prefixlist_cfg(frr_cfg[i], ADDR_TYPE)
-                routemap_cfg(frr_cfg[i], ADDR_TYPE)
-                frr_cfg[i].print_common_config_to_file(topo)
+                        else:
+                            match = None
+                            rmap.add_seq(match, rmap_action, set_criteria)
+
+                interfaces_cfg(frr_cfg[router])
+                static_rt_cfg(frr_cfg[router])
+                prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
+                routemap_cfg(frr_cfg[router], ADDR_TYPE)
+                frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
                 load_config_to_router(tgen, CWD, router)
     except Exception as e:
@@ -1265,36 +1446,39 @@ def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
 def delete_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
     Delete ip route maps
-    
+
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
-    * `input_dict` :  for which static route/s admin distance should modified
+    * `input_dict` :  for which router, route map has to be deleted
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
-    logger.info("Entering lib API: delete_prefix_lists()")
+    logger.info("Entering lib API: delete_route_maps()")
 
     try:
         global frr_cfg
         for router in input_dict.keys():
 
-            # Getting number for router
-            i = number_to_router[router]
-
             # Reset config for routers
-            frr_cfg[i].reset_it()
+            frr_cfg[router].reset_it()
 
             route_maps = input_dict[router]['route_maps']
+            found = False
             for route_map in route_maps:
-                for rmap in frr_cfg[i].routing_pb.route_maps:
+                for rmap in frr_cfg[router].routing_pb.route_maps:
                     if rmap.route_map_uuid_name == route_map:
-                        frr_cfg[i].routing_pb.route_maps.remove(rmap)
+                        found = True
+                        frr_cfg[router].routing_pb.route_maps.remove(rmap)
+            if not found:
+                errormsg = ("Route map {} not found in router {}".
+                            format(route_map, router))
+                return errormsg
 
-            interfaces_cfg(frr_cfg[i])
-            static_rt_cfg(frr_cfg[i])
-            prefixlist_cfg(frr_cfg[i], ADDR_TYPE)
-            routemap_cfg(frr_cfg[i], ADDR_TYPE)
-            frr_cfg[i].print_common_config_to_file(topo)
+            interfaces_cfg(frr_cfg[router])
+            static_rt_cfg(frr_cfg[router])
+            prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
+            routemap_cfg(frr_cfg[router], ADDR_TYPE)
+            frr_cfg[router].print_common_config_to_file(topo)
             # Load config to router
             load_config_to_router(tgen, CWD, router)
     except Exception as e:
@@ -1302,14 +1486,14 @@ def delete_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
         logger.error(errormsg)
         return errormsg
 
-    logger.info("Exiting lib API: delete_prefix_lists()")
+    logger.info("Exiting lib API: delete_route_maps()")
     return True
 
 #############################################
 ## Verification APIs
 #############################################
 def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = None):
-    """ 
+    """
     This API is to verify RIB  BGP routes.
 
     * `ADDR_TYPE` : ip type, ipv4/ipv6
@@ -1329,27 +1513,37 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
                 continue
 
             # Verifying RIB routes
-	    if protocol != None:
-                command = "show ip route {} json".format(protocol)
-            else:
-                command = "show ip route json"
+            if ADDR_TYPE == "ipv4":
+                if protocol != None:
+                    command = "show ip route {} json".format(protocol)
+                else:
+                    command = "show ip route json"
+	    else:
+                if protocol != None:
+                    command = "show ipv6 route {} json".format(protocol)
+                else:
+                    command = "show ipv6 route json"
 
             sleep(2)
             logger.info('Checking router {} RIB:'.format(router))
             rib_routes_json = rnode.vtysh_cmd(command, isjson=True)
-        
-	    # Verifying output dictionary rib_routes_json is not empty
+
+            # Verifying output dictionary rib_routes_json is not empty
             if bool(rib_routes_json) == False:
-                errormsg = "No {} route found in rib of router {}..".format(protocol, router)
+                errormsg = "No {} route found in rib of router {}..".\
+                    format(protocol, router)
                 return errormsg
 
             if 'static_routes' in input_dict[routerInput]:
-		static_routes = input_dict[routerInput]["static_routes"]
-		for static_route in static_routes:
-		    found_routes = []
-	    	    missing_routes = []
+                static_routes = input_dict[routerInput]["static_routes"]
+                for static_route in static_routes:
+                    found_routes = []
+                    missing_routes = []
                     network = static_route["network"]
-                    no_of_ip = static_route["no_of_ip"]
+                    if "no_of_ip" in static_route:
+                        no_of_ip = static_route["no_of_ip"]
+                    else:
+                        no_of_ip = 0
 
                     # Generating IPs for verification
                     ip_list = generate_ips(ADDR_TYPE, network, no_of_ip)
@@ -1357,32 +1551,38 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
                         st_rt = str(ipaddress.ip_network(unicode(st_rt)))
 
                         st_found = False
-			nh_found = False
+                        nh_found = False
                         if st_rt in rib_routes_json:
                             st_found = True
-			    found_routes.append(st_rt)
+                            found_routes.append(st_rt)
 
                             if next_hop != None:
-                                if rib_routes_json[st_rt][0]['nexthops'][0]['ip'] == next_hop:
+                                if rib_routes_json[st_rt][0]['nexthops'][0]['ip'] \
+                                        == next_hop:
                                     nh_found = True
                                 else:
-                                    errormsg = ("Nexthop {} is Missing for {} route {} in RIB of router {}\n".format( \
-										     next_hop, protocol, st_rt, dut))
+                                    errormsg = ("Nexthop {} is Missing for {}"
+                                        " route {} in RIB of router"
+                                        " {}\n".format(next_hop, protocol,
+                                                       st_rt, dut))
                                     return errormsg
-			else:
-			    missing_routes.append(st_rt)
+                        else:
+                            missing_routes.append(st_rt)
                 if nh_found:
-		    logger.info("Found next_hop {} for all {} routes in RIB of router {}\n".format(next_hop, protocol, dut))
+                    logger.info("Found next_hop {} for all routes in RIB of"
+                                " router {}\n".format(next_hop, dut))
 
-		if not st_found and len(missing_routes) > 0:
-                    errormsg = "Missing route in RIB of router {}, routes: {} \n".format(dut, missing_routes)
+                if not st_found and len(missing_routes) > 0:
+                    errormsg = "Missing route in RIB of router {}, routes: {}" \
+                               " \n".format(dut, missing_routes)
                     return errormsg
-		
-		logger.info("Verified routes in router {} RIB, found routes are: {}\n".format(dut, found_routes))
-		
+
+                logger.info("Verified routes in router {} RIB, found routes"
+                            " are: {}\n".format(dut, found_routes))
+
             if 'advertise_networks' in input_dict[routerInput]:
-	        found_routes = []
-		missing_routes = []
+                found_routes = []
+                missing_routes = []
                 advertise_network = input_dict[routerInput]['advertise_networks']
                 for advertise_network_dict in advertise_network:
                     start_ip = advertise_network_dict['start_ip']
@@ -1399,24 +1599,27 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
                         found = False
                         if st_rt in rib_routes_json:
                             found = True
-			    found_routes.append(st_rt)
+                            found_routes.append(st_rt)
                         else:
                             missing_routes.append(st_rt)
 
-		if not found and len(missing_routes) > 0:
-                    errormsg = "Missing route in RIB of router {}, are: {} \n".format(dut, missing_routes)
+                if not found and len(missing_routes) > 0:
+                    errormsg = "Missing route in RIB of router {}, are: {}" \
+                               " \n".format(dut, missing_routes)
                     return errormsg
-	    
-		logger.info("Verified routes in router {} RIB, found routes are: {}\n".format(dut, found_routes))
 
-        logger.info("Exiting lib API: verify_rib()")
-        return True
+                logger.info("Verified routes in router {} RIB, found routes"
+                            " are: {}\n".format(dut, found_routes))
+
+    logger.info("Exiting lib API: verify_rib()")
+    return True
 
 def verify_admin_distance_for_static_routes(input_dict, tgen):
-    """ 
+    """
     This API is to verify admin distance for static routes.
-    
-    * `input_dict`: having details like - for which router and static routes admin dsitance needs to be verified
+
+    * `input_dict`: having details like - for which router and static routes
+                    admin dsitance needs to be verified
     * `tgen` : topogen object
     """
 
@@ -1429,25 +1632,104 @@ def verify_admin_distance_for_static_routes(input_dict, tgen):
 
             show_ip_route_json = rnode.vtysh_cmd("show ip route json", isjson=True)
             for static_route in input_dict[dut].keys():
-                logger.info('Verifying admin distance for static route {} under dut {}:'.format(static_route, router))
+                logger.info('Verifying admin distance for static route {}'
+                            ' under dut {}:'.format(static_route, router))
                 next_hop = input_dict[dut][static_route]['next_hop']
                 admin_distance = input_dict[dut][static_route]['admin_distance']
 
                 if static_route in show_ip_route_json:
-                    if show_ip_route_json[static_route][0]['nexthops'][0]['ip'] == next_hop:
-                        if show_ip_route_json[static_route][0]['distance'] != admin_distance:
-                            errormsg = ('Verification failed: admin distance for static route {} under dut {}, \
-				       found:{} but expected:{}'.format(static_route, router, 	\
-			    	       show_ip_route_json[static_route][0]['distance'], admin_distance))
+                    if show_ip_route_json[static_route][0]['nexthops'][0]['ip']\
+                            == next_hop:
+                        if show_ip_route_json[static_route][0]['distance']\
+                                != admin_distance:
+                            errormsg = ('Verification failed: admin distance'
+                                ' for static route {} under dut {},'
+                                ' found:{} but expected:{}'.format(
+                                static_route, router,
+                                show_ip_route_json[static_route][0]['distance'],
+                                admin_distance))
                             return errormsg
                         else:
-                            logger.info('Verification successful: admin distance for static route {} under dut {}, \
-	              	    found:{}'.format(static_route, router, show_ip_route_json[static_route][0]['distance']))
+                            logger.info('Verification successful: admin'
+                                ' distance for static route {} under'
+                                ' dut {}, found:{}'.format(static_route,
+                                router,
+                                show_ip_route_json[static_route][0]['distance']))
 
                 else:
-                    errormsg = ('Static route {} not found in show_ip_route_json for dut {}'.format(static_route, router))
+                    errormsg = ('Static route {} not found in '
+                                'show_ip_route_json for dut {}'.
+                                format(static_route, router))
                     return errormsg
 
     logger.info("Exiting lib API: verify_admin_distance_for_static_routes()")
     return True
 
+def verify_prefix_lists(ADDR_TYPE, input_dict, tgen):
+    """
+    This API is to verify prefix lists.
+
+    * `ADDR_TYPE` : ip type, ipv4/ipv6
+    * `input_dict`: having details like - for which router prefix
+		    lists has to be deleted
+    * `tgen` : topogen object
+    """
+
+    logger.info("Entering lib API: verify_prefix_lists()")
+
+    for dut in input_dict.keys():
+        for router, rnode in tgen.routers().iteritems():
+            if router != dut:
+                continue
+
+            # Show ip prefix list
+            show_prefix_list = rnode.vtysh_cmd("show ip prefix-list")
+
+            # Verify Prefix list is deleted
+            prefix_lists = input_dict[router]["prefix_lists"]
+            for prefix_list in prefix_lists:
+                if prefix_list in show_prefix_list:
+                    errormsg = ("Prefix list {} is not deleted from router"
+                                " {}".format(prefix_list, router))
+                return errormsg
+
+            logger.info("Prefix list {} is/are deleted successfully from"
+                        "router {}".format(prefix_lists, dut))
+
+    logger.info("Exiting lib API: verify_prefix_lissts()")
+    return True
+
+
+def verify_route_maps(ADDR_TYPE, input_dict, tgen):
+    """
+    This API is to verify route maps.
+
+    * `ADDR_TYPE` : ip type, ipv4/ipv6
+    * `input_dict`: having details like - for which router route
+		    maps has to be deleted
+    * `tgen` : topogen object
+    """
+
+    logger.info("Entering lib API: verify_route_maps()")
+
+    for dut in input_dict.keys():
+        for router, rnode in tgen.routers().iteritems():
+            if router != dut:
+                continue
+
+            # Show ip route-map
+            show_route_maps = rnode.vtysh_cmd("show route-map")
+
+            # Verify route-map is deleted
+            route_maps = input_dict[router]["route_maps"]
+            for route_map in route_maps:
+                if route_map in show_route_maps:
+                    errormsg = ("Route map {} is not deleted from router"
+                                " {}".format(route_map, router))
+                    return errormsg
+
+            logger.info("Route map {} is/are deleted successfully from"
+                        " router {}".format(route_maps, router))
+
+    logger.info("Exiting lib API: verify_route_maps()")
+    return True

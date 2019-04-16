@@ -43,6 +43,7 @@ import os
 import sys
 import pdb
 import json
+import time
 import pytest
 import inspect
 import ipaddress
@@ -64,12 +65,12 @@ from mininet.topo import Topo
 from lib.topojson import *
 
 # Reading the data from JSON File for topology creation
-jsonFile = "test_bgp_basic_functionality.json"
+jsonFile = "{}/bgp_basic_functionality.json".format(CWD)
 try:
     with open(jsonFile, 'r') as topoJson:
         topo = json.load(topoJson)
 except IOError:
-    logger.info("Could not read file:", jsonFile)
+    assert False, "Could not read file {}".format(jsonFile)
 
 # Global variables
 bgp_convergence = None
@@ -77,9 +78,9 @@ bgp_convergence = None
 # input_dict, dictionary would be used to provide input to APIs
 input_dict = {}
 
-class BGPBasicTopo(Topo):
+class CreateTopo(Topo):
     """
-    Test BGPBasicTopo - topology 1
+    Test BasicTopo - topology 1
    
     * `Topo`: Topology object
     """
@@ -88,7 +89,7 @@ class BGPBasicTopo(Topo):
         "Build function"
         tgen = get_topogen(self)
 
-	# Building topology and configuration from json file
+	# Building topology from json file
  	build_topo_from_json(tgen, topo)
 
 def setup_module(mod):
@@ -103,43 +104,14 @@ def setup_module(mod):
     logger.info("="*40)
 
     logger.info("Running setup_module to create topology")
-   
+
     # This function initiates the topology build with Topogen...
-    tgen = Topogen(BGPBasicTopo, mod.__name__)
+    tgen = Topogen(CreateTopo, mod.__name__)
     # ... and here it calls Mininet initialization functions.
-    
-    tgen.start_topology()
-    
-    # Uncomment following line to enable debug logs and comment - tgen.start_topology() 
-    #tgen.start_topology(log_level='debug')
 
-    router_list = tgen.routers()
-    for rname, router in router_list.iteritems():
-	try:
-	    os.chdir(CWD)
-	    # Deleting router named dirs if exists
-	    if os.path.exists('{}'.format(rname)):
-		os.system("rm -rf {}".format(rname))
-	    
-	    # Creating rouer named dir and emoty zebra.conf bgpd.conf files inside the current directory    
-	    os.mkdir('{}'.format(rname))
-    	    os.chdir("{}/{}".format(CWD, rname))
-  	    os.system('touch zebra.conf bgpd.conf')
-        except IOError as (errno, strerror):
-	    logger.error("I/O error({0}): {1}".format(errno, strerror))
-
- 	router.load_config(
-            TopoRouter.RD_ZEBRA,
-            os.path.join(CWD, '{}/zebra.conf'.format(rname))
-        )
-        router.load_config(
-            TopoRouter.RD_BGP,
-            os.path.join(CWD, '{}/bgpd.conf'.format(rname))
-        )
-
-    # After loading the configurations, this function starts configured daemons.
-    logger.info("Starting all routers once topology is created")
-    tgen.start_router()
+    # Starting topology, create tmp files which are loaded to routers
+    #  to start deamons and then start routers
+    start_topology(tgen, CWD)
 
     # Creating configuration from JSON
     build_config_from_json(tgen, topo, CWD)
@@ -157,20 +129,11 @@ def teardown_module(mod):
     
     tgen = get_topogen()
 
-    # This function tears down the whole topology.
-    tgen.stop_topology()
+    # Stop toplogy and Remove tmp files
+    stop_topology(tgen, CWD)
 
-    # Removing tmp dirs and files
-    router_list = tgen.routers()
-    for rname, router in router_list.iteritems():
-        try:
-            os.chdir(CWD)
-            os.system("rm -rf {}".format(rname))
-        except IOError as (errno, strerror):
-            logger.error("I/O error({0}): {1}".format(errno, strerror))
-
-    testsuite_run_time = time.asctime(time.localtime(time.time()))
-    logger.info("Testsuite end time: {}".format(testsuite_run_time))
+    logger.info("Testsuite end time: {}".\
+         	format(time.asctime(time.localtime(time.time()))))
     logger.info("="*40)
 
 
@@ -201,7 +164,7 @@ def test_bgp_convergence():
     logger.info("Testcase " + tc_name + " :Passed \n")
     
     # Uncomment next line for debugging
-    #tgen.mininet_cli()
+    tgen.mininet_cli()
 
 def test_modify_and_delete_router_id():
     " Test to modify, delete and verify router-id. "
@@ -272,46 +235,46 @@ def test_BGP_config_with_4byte_AS_number():
     # Api call to modify AS number
     input_dict = {
         "r1": {
-            "as_number": 131079,
+            "local_as": 131079,
             "bgp_neighbors": {
                     "r2": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     },
                     "r3": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     }
             }
         },
         "r2": {
-            "as_number": 131079,
+            "local_as": 131079,
             "bgp_neighbors": {
                     "r1": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     },
                     "r3": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     }
             }
         },
         "r3": {
-            "as_number": 131079,
+            "local_as": 131079,
             "bgp_neighbors": {
                     "r1": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     },
                     "r2": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     },
                     "r4": {
-                        "remoteas": 131080,
+                        "remote_as": 131080,
                     }
             }
         },
         "r4": {
-            "as_number": 131080,
+            "local_as": 131080,
             "bgp_neighbors": {
                     "r3": {
-                        "remoteas": 131079,
+                        "remote_as": 131079,
                     }
             }
         }
@@ -327,32 +290,9 @@ def test_BGP_config_with_4byte_AS_number():
     # Uncomment next line for debugging
     #tgen.mininet_cli()
 
-def test_bgp_timers():
+def test_bgp_timers_functioanlity():
     """
-    Test to modify bgp timers and verify in running config.
-    
-    Usage:
-    * If user wants to modify BGP timers for all the neighbors for  any router then we can pass input_dict
-        as below:
-    input_dict = {
-        "r1(any router)": {
-            "BGP_Global_Timers": {
-                "keepalivetimer": 90(as per test),
-                "holddowntimer": 270(as per test)
-            } // can provide data for multiple/all routers in topology
-
-    * If user wants to modify BGP timers to any specific neighbor of router then we can pass input_dict
-        as below:
-    input_dict = {
-        "r1": {
-            "bgp_neighbors":{
-               "r2":{ 
-                    "keepalivetimer": 90,
-                    "holddowntimer": 270,
-               }
-            }
-        }
-    }
+    Test to modify bgp timers and verify timers functionality.
     """
 
     tgen = get_topogen()
@@ -368,22 +308,27 @@ def test_bgp_timers():
     # Creating configuration from JSON
     build_config_from_json(tgen, topo, CWD)
 
-    # Api call to modfiy/delete admin distance
+    # Api call to modfiy BGP timerse
     input_dict = {
         "r1": {
-            "bgp_neighbors":{
-               "r2":{ 
-                    "keepalivetimer": 90,
-                    "holddowntimer": 270,
+           "bgp": {
+               "bgp_neighbors":{
+                  "r2":{ 
+                      "keepalivetimer": 5,
+                      "holddowntimer": 15,
+                   }
                }
-            }
+	    }
         }
     }
     result = modify_bgp_timers('ipv4', input_dict, CWD, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
-    # Verifying bgp timers once modified
-    result = verify_bgp_timers('ipv4', tgen, input_dict, topo)
+    # Api call to clear bgp, so timer modification would take place
+    clear_bgp('ipv4', tgen, 'r1')
+
+    # Verifying bgp timers functionality
+    result = verify_bgp_timers_and_functionality('ipv4', tgen, input_dict, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -404,6 +349,9 @@ def test_static_routes():
     tc_name = inspect.stack()[0][3]
     logger.info("Testcase started: {} \n".format(tc_name))
 
+    # Creating configuration from JSON
+    build_config_from_json(tgen, topo, CWD)
+
     # Api call to create static routes
     input_dict = {
         "r1": {
@@ -416,10 +364,8 @@ def test_static_routes():
     # Api call to redistribute static routes
     input_dict_1 = {
         'r1': {
-	    'redistribute': {
-		  'static': True,
-		  'connected': True,
-	    }
+               "redistribute": [{"static": True}, \
+				{"connected": True}]
 	}
     }
     result = redistribute_static_routes('ipv4', input_dict_1, tgen, CWD, topo)
@@ -505,7 +451,7 @@ def test_advertise_network_using_network_command():
     # Uncomment next line for debugging
     #tgen.mininet_cli()
 
-def test_clear_bgp():
+def test_clear_bgp_and_verify():
     " Test clear bgp functionality. "
 
     tgen = get_topogen()
@@ -518,9 +464,8 @@ def test_clear_bgp():
     tc_name = inspect.stack()[0][3]
     logger.info("Testcase started: {} \n".format(tc_name))
 
-    # Api call to modfiy/delete admin distance
-    dut = 'r1'
-    result = clear_bgp_and_verify('ipv4', tgen, dut, topo)
+    # Api call to clear bgp, so timer modification would take placee
+    result = clear_bgp_and_verify('ipv4', tgen, 'r1', topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -532,8 +477,8 @@ def test_bgp_with_loopback_interface():
     """ 
     Test BGP with loopback interface
     
-    We are adding "source": "lo" in input json file to all the router's neighbors and creating config using loopback interface.
-    Once tested we are deleting key "source": "lo" from input json file for all the router's neighbors and creating config using physical interface.
+    We are adding "source_link": "lo" in input json file to all the router's neighbors and creating config using loopback interface.
+    Once tested we are deleting key "source_link": "lo" from input json file for all the router's neighbors and creating config using physical interface.
     """
 
     tgen = get_topogen()
@@ -548,11 +493,12 @@ def test_bgp_with_loopback_interface():
 
     for routerN in sorted(topo['routers'].iteritems()):
         for bgp_neighbor in topo['routers'][routerN[0]]['bgp']['bgp_neighbors'].iteritems():
-            topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['source'] = 'lo'
+            topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['source_link'] = 'lo'
 
     # Creating configuration from JSON
     build_config_from_json(tgen, topo, CWD)
 
+    tgen.mininet_cli()
     # Api call verify whether BGP is converged
     bgp_convergence = verify_bgp_convergence('ipv4', tgen, topo)
     if bgp_convergence != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(bgp_convergence)
@@ -561,7 +507,7 @@ def test_bgp_with_loopback_interface():
     for routerN in sorted(topo['routers'].iteritems()):
         for bgp_neighbor in topo['routers'][routerN[0]]['bgp']['bgp_neighbors'].iteritems():
             try:
-                del topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['source']
+                del topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['source_link']
             except KeyError:
                 logger.error("Key: source is not found \n")
 

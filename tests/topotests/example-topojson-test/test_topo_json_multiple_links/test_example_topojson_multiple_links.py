@@ -27,11 +27,13 @@
 import os
 import sys
 import json
+import time
 import inspect
 import pytest
 
 # Save the Current Working Directory to find configuration files.
 CWD = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(os.path.join(CWD, '../'))
 sys.path.append(os.path.join(CWD, '../../'))
 
 # pylint: disable=C0413
@@ -47,12 +49,12 @@ from mininet.topo import Topo
 from lib.topojson import *
 
 # Reading the data from JSON File for topology and configuration creation
-jsonFile = "test_example_topojson_multiple_links.json"
+jsonFile = "{}/example_topojson_multiple_links.json".format(CWD)
 try:
     with open(jsonFile, 'r') as topoJson:
         topo = json.load(topoJson)
 except IOError:
-    logger.info("Could not read file:", jsonFile)
+    assert False, "Could not read file {}".format(jsonFile)
 
 # Global variables
 bgp_convergence = False
@@ -97,41 +99,9 @@ def setup_module(mod):
     tgen = Topogen(TemplateTopo, mod.__name__)
     # ... and here it calls Mininet initialization functions.
 
-    # Starting topology
-    tgen.start_topology()
-
-    # Uncomment following line to enable debug logs and comment - tgen.start_topology() 
-    #tgen.start_topology(log_level='debug')
-
-    router_list = tgen.routers()
-    for rname, router in router_list.iteritems():
-        try:
-            os.chdir(CWD)
-            # Deleting router named dirs if exists
-            if os.path.exists('{}'.format(rname)):
-                os.system("rm -rf {}".format(rname))
-
-            # Creating rouer named dir and emoty zebra.conf bgpd.conf files inside the current directory    
-            os.mkdir('{}'.format(rname))
-            os.chdir("{}/{}".format(CWD, rname))
-            os.system('touch zebra.conf bgpd.conf')
-        except IOError as (errno, strerror):
-            logger.error("I/O error({0}): {1}".format(errno, strerror))
-
-	# Loading empty zebra.conf file to router, to start the zebra deamon
-        router.load_config(
-            TopoRouter.RD_ZEBRA,
-            os.path.join(CWD, '{}/zebra.conf'.format(rname))
-        )
-	# Loading empty bgpd.conf file to router, to start the bgp deamon
-        router.load_config(
-            TopoRouter.RD_BGP,
-            os.path.join(CWD, '{}/bgpd.conf'.format(rname))
-        )
-
-    # After loading the configurations, this function starts configured daemons.
-    logger.info("Starting all routers once topology is created")
-    tgen.start_router()
+    # Starting topology, create tmp files which are loaded to routers
+    #  to start deamons and then start routers
+    start_topology(tgen, CWD)
 
     # This function only purpose is to create configuration
     # as defined in input json file.
@@ -158,17 +128,8 @@ def teardown_module(mod):
 
     tgen = get_topogen()
 
-    # This function tears down the whole topology.
-    tgen.stop_topology()
-
-    # Removing tmp dirs and files
-    router_list = tgen.routers()
-    for rname, router in router_list.iteritems():
-        try:
-            os.chdir(CWD)
-            os.system("rm -rf {}".format(rname))
-        except IOError as (errno, strerror):
-            logger.error("I/O error({0}): {1}".format(errno, strerror))
+    # Stop toplogy and Remove tmp files
+    stop_topology(tgen, CWD)
 
 def test_bgp_convergence():
     " Test BGP daemon convergence "
@@ -203,7 +164,7 @@ def test_static_routes():
     logger.info("Testcase started: {} \n".format(tc_name))
 
     # Static routes are created as part of initial configuration, verifying RIB
-    dut = 'r2'
+    dut = 'r3'
     protocol = 'bgp'
     next_hop = '10.0.0.1'
     input_dict = topo["routers"]
@@ -213,7 +174,7 @@ def test_static_routes():
     logger.info("Testcase " + tc_name + " :Passed \n")
 
     # Uncomment next line for debugging
-    tgen.mininet_cli()
+    #tgen.mininet_cli()
 
 
 if __name__ == '__main__':
