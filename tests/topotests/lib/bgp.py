@@ -32,8 +32,17 @@ BGP_CONVERGENCE_TIMEOUT = 10
 
 ###
 class BGPRoutingPB:
+    """BGP configuration backup builder"""
 
     def __init__(self, router_id):
+	"""
+        BGP configuration backup initialization function.
+     
+        Parameters
+        ----------
+        * `router_id` : Router-id for DUT
+        """
+
         self.bgp_config = None
         self.community_lists = []
         self.redistribute_static = None
@@ -44,8 +53,18 @@ class BGPRoutingPB:
 
 
 class BGPConfig:
+    """ BGP configuration builder class """
 
     def __init__(self, router, routing_cfg_msg, bgpcfg_file):
+	"""
+        BGP configuration initialization function. Configuration
+        will be saved in defined class variables.
+
+	Parameters
+        ----------
+        * `router` : Device Under Test
+
+        """
         self.router = router
         self.routing_pb = routing_cfg_msg
         self.bgp_global = get_StringIO()
@@ -60,6 +79,8 @@ class BGPConfig:
         self.bgpcfg_file =  bgpcfg_file
 
     def reset_it(self):
+        """ BGP configurations reset to None/Null """
+
         self.bgp_global = get_StringIO()
         self.bgp_neighbors = get_StringIO()
         self.bgp_address_family = {}
@@ -70,6 +91,14 @@ class BGPConfig:
         self.community_list = get_StringIO()
 
     def print_bgp_config_to_file(self, topo):
+        """
+        API will read values from BGPConfig class variables and print
+	to bgp_json.conf file.
+
+        Parameters
+        ----------
+	* `topo` : Input json data
+        """
         try:
             bgpcfg = open(self.bgpcfg_file, 'w')
         except IOError as err:
@@ -93,24 +122,26 @@ class BGPConfig:
             bgpcfg.close()
         return True
 
-    def close(self):
-        self.bgp_neighbors.close()
-        self.bgp_global.close()
-        for addr_family in self.bgp_address_family:
-            self.bgp_address_family[addr_family].close()
-
 def create_bgp_cfg(router, topo):
     """
-    Create BGP configuration for created topology and
-    save the configuration to frr.conf file. BGP configuration
-    is provided in input json file.
+    Create BGP configuration for the topology defined in input
+    JSON file and save config to variables of class BGPConfig.
 
+    Parameters
+    ----------
     * `router` : router for which bgp config should be created
     * `topo` : json file data
+    
+    Returns
+    -------
+    errormsg(str) or object of BGPConfig class which has BGP
+    configuration
     """
 
+    logger.info("Entering lib API: create_bgp_cfg()")
     try:
-        # Setting key to bgp to read data from json file for bgp configuration
+        # Setting key to bgp to read data from json file for bgp
+	# configuration
         key = 'bgp'
         local_as = topo['routers']['{}'.format(router)][key]['local_as']
         if "ecmp" in topo['routers']['{}'.format(router)][key]:
@@ -190,18 +221,26 @@ def create_bgp_cfg(router, topo):
         logger.error(errormsg)
         return errormsg
 
+    logger.info("Exiting lib API: create_bgp_cfg()")
     return bgp
 
 def create_bgp_configuration(ADDR_TYPE, tgen, CWD, topo, router):
     """
-    It will create bgp.conf file, in which all the routers common configuration
-    would be saved
+    API to create object of class BGPConfig and also create bgp_json.conf
+    file. It will create BGP and related configurations and save it to
+    bgp_json.conf and load to router
 
+    Parameters
+    ----------
     * `ADDR_TYPE` : ip type ipv4/ipv6
     * `tgen` : Topogen object
     * `CWD`  : caller's current working directory
     * `topo` : json file data
     * `router` : current router
+    
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     try:
@@ -251,18 +290,49 @@ def create_bgp_configuration(ADDR_TYPE, tgen, CWD, topo, router):
 
 # Helper class for Address type  configuration
 class Address:
+    """ Address family type """
 
-    def __init__(self, afi, ipv4=None, ipv6=None):
+    def __init__(self, afi, ipv4 = None, ipv6 = None):
+	""" Initializaton function for Address family
+	
+	Parameters
+	----------
+	* `afi` : Address familty identifier
+	* `ipv4` : address type, ipv4, default None
+	* `ipv6` : address type, ipv6, default is None
+        """
         self.afi = afi
         self.ipv4 = ipv4
         self.ipv6 = ipv6
 
 # Helper class for Address family configuration
 class AddressFamily:
+    """ BGP address-family configuration builder """
 
     def __init__(self, ad_family, enabled=None, filter_in_prefix_list=None,
                  filter_out_prefix_list=None, filter_in_rmap=None,
-                 filter_out_rmap=None, next_hop_self = False):
+                 filter_out_rmap=None, next_hop_self = None, 
+		 no_send_community = None):
+	"""
+	Initialization function for BGP address-family configuration
+
+	Parameters
+	----------
+        * `ad_family`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+        * `enabled`: If true then BGP will be configured, true/false,
+		     default is None  
+        * `filter_in_prefix_list`: Prefix list name, which will applied to 
+			           BGP neighbor IN direction, default is None
+        * `filter_out_prefix_list`: Prefix list name, which will applied to 
+                                    BGP neighbor OUT direction, default is None
+        * `filter_in_rmap`: Route-map name, which will applied to BGP
+                            neighbor IN direction, default is None
+        * `filter_out_rmap`: Route-map name, which will applied to BGP
+                             neighbor OUT direction, default is None
+        * `next_hop_self`: Apply next_hop_self for BGP neighbor, default None
+        * `no_send_community` : Set no send_community config for neighbor
+        """
+
         self.type = ad_family
         self.enabled = enabled
         self.filter_in_prefix_list = filter_in_prefix_list
@@ -270,13 +340,31 @@ class AddressFamily:
         self.filter_in_rmap = filter_in_rmap
         self.filter_out_rmap = filter_out_rmap
 	self.next_hop_self = next_hop_self
+	self.no_send_community = no_send_community
 
 # Helper class for BGP Neighbor configuration
 class Neighbor:
+    """ BGP neighbor configuration builder """
 
     def __init__(self, afi, ip_address, remote_as, keep_alive_time=None,
                  hold_down_time=None, password=None, update_source=None,
                  max_hop_limit = 0):
+	"""
+	Initialization function for BGP neighbor configuration
+
+	Parameters
+	----------
+        * `afi`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+        * `ip_address`: Neighbor address
+        * `remote_as`: Remote_as for neighbor
+        * `keep_alive_time`: Keep Alive Time for neighbor, default None
+        * `hold_down_time`: Hold Down Time for neighbor, default None
+        * `password`: Password for neighbor, default None
+        * `update_source`: enable update source for loopback neighborship,
+			   default None
+        * `max_hop_limit`: ebgp multihop limit, default None
+        """
+
         self.afi = afi
         self.ip_address = ip_address
         self.remote_as = remote_as
@@ -292,7 +380,25 @@ class Neighbor:
                            filter_out_prefix_list=None,
                            filter_in_rmap=None,
                            filter_out_rmap=None,
-			   next_hop_self = False):
+			   next_hop_self = None,
+			   no_send_community = None, 
+                           max_hop_limit = 0):
+	""" 
+        Add address-family configuration for BGP 
+	
+	Parameters
+	----------
+        * `afi`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+        * `ip_address`: Neighbor address
+        * `remote_as`: Remote_as for neighbor
+        * `keep_alive_time`: Keep Alive Time for neighbor, default None
+        * `hold_down_time`: Hold Down Time for neighbor, default None
+        * `password`: Password for neighbor, default None
+        * `update_source`: enable update source for loopback neighborship,
+                           default None
+        * `max_hop_limit`: ebgp multihop limit, default None
+        """
+
         for f in self.address_families:
             if f.type == ad_family:
                 f.enabled = enabled
@@ -301,23 +407,43 @@ class Neighbor:
                 f.filter_in_rmap = filter_in_rmap
                 f.filter_out_rmap = filter_out_rmap
 		f.next_hop_self = next_hop_self
+		f.no_send_community = no_send_community
                 return
 
         family = AddressFamily(ad_family, enabled, filter_in_prefix_list,
                                filter_out_prefix_list, filter_in_rmap,
-                               filter_out_rmap, next_hop_self = False)
+                               filter_out_rmap, next_hop_self, 
+			       no_send_community)
         self.address_families.append(family)
 
     def del_address_family(self, ad_family):
+	""" Delete address family confiuration for given address-family
+
+	Parameters
+	----------
+        * `ad_family`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+	"""
+
         for f in self.address_families:
             if f.type == ad_family:
                 self.address_families.remove(f)
 
 # Helper class for BGP configuration
 class Bgp:
+    """ BGP configuration helper class """
 
     def __init__(self, local_as, graceful_restart, ecmp):
-        self.local_as = local_as
+	"""
+	Initialization function for BGP global and address
+	family configurations
+	
+	Parameters
+	* `local_as` : Local AS number
+	* `graceful_restart` : BGP global graceful-restart config
+	* `ecmp` : ECMP, max path config
+	"""
+        
+	self.local_as = local_as
         self.graceful_restart = graceful_restart
         self.ecmp = ecmp
         self.neighbors = []
@@ -325,6 +451,22 @@ class Bgp:
     def add_neighbor(self, afi, ip_address, remote_as, keep_alive_time=None,
                      hold_down_time=None, password=None, update_source=None,
                      max_hop_limit=None):
+	"""
+	Add neighbor for given router with the given configuration
+
+	Parameters
+	----------
+        * `afi`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+        * `ip_address`: Neighbor address
+        * `remote_as`: Remote_as for neighbor
+        * `keep_alive_time`: Keep Alive Time for neighbor, default None
+        * `hold_down_time`: Hold Down Time for neighbor, default None
+        * `password`: Password for neighbor, default None
+        * `update_source`: enable update source for loopback neighborship,
+                           default None
+        * `max_hop_limit`: ebgp multihop limit, default None
+        """
+
         for n in self.neighbors:
             if n.afi == afi and n.ip_address == ip_address:
                 n.remote_as = remote_as
@@ -342,11 +484,26 @@ class Bgp:
         return neighbor
 
     def get_neighbor(self, afi, ip_address):
+	""" 
+	Fetch and returns neighbor and its details from BGP configuration
+
+	Parameters
+        * `afi`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+        * `ip_address`: Neighbor address
+	"""
         for n in self.neighbors:
             if n.afi == afi and n.ip_address.ipv4 == ip_address.ipv4:
                 return n
 
     def del_neighbor(self, afi, ip_address):
+	"""
+	Delete neighbor from BGP configuration
+	
+        Parameters
+        * `afi`:  Address family, IPv4_UNICAST/IPv6_UNICAST
+        * `ip_address`: Neighbor address
+	"""
+
         for n in self.neighbors:
             if n.afi == afi and n.ip_address == ip_address:
                 self.neighbors.remove(n)
@@ -354,6 +511,19 @@ class Bgp:
 
 def _print_bgp_global_cfg(bgp_cfg, local_as_no, router_id, ecmp_path,
                           gr_enable):
+    """
+    API prints bgp global config to bgp_json file.
+
+    Parameters
+    ----------
+    * `bgp_cfg` : BGP class variables have BGP config saved in it for 
+                  particular router,
+    * `local_as_no` : Local as number
+    * `router_id` : Router-id
+    * `ecmp_path` : ECMP max path
+    * `gr_enable` : BGP global gracefull restart config
+    """
+    
     bgp_cfg.bgp_global.write('router bgp ' + str(local_as_no) + '\n')
     if router_id != None:
         bgp_cfg.bgp_global.write('bgp router-id ' + IpAddressMsg_to_str(
@@ -367,13 +537,29 @@ def _print_bgp_global_cfg(bgp_cfg, local_as_no, router_id, ecmp_path,
         bgp_cfg.bgp_global.write(' bgp graceful-restart\n')
 
 def _print_bgp_address_family_cfg(bgp_cfg, neigh_ip, addr_family):
+    """
+    API prints bgp address-family config to bgp_json file.
+
+    Parameters
+    ----------
+    * `bgp_cfg` : BGP class variables have BGP config saved in it for 
+                  particular router,
+    * `neigh_ip` : Neighbor ip for which config needs to be written
+    * `addr_family` : Address family, ipv4/6 unicast
+    """
+
     out_filter_or_rmap = False
     neigh_cxt = 'neighbor ' + neigh_ip + ' '
 
     # next-hop-self
-    if addr_family.next_hop_self != False:
+    if addr_family.next_hop_self != None:
        bgp_cfg.bgp_address_family[addr_family.type].write(
             neigh_cxt + 'next-hop-self' '\n')
+
+    # no_send_community
+    if addr_family.no_send_community != None:
+       bgp_cfg.bgp_address_family[addr_family.type].write(
+            'no ' + neigh_cxt + 'send-community ' + addr_family.no_send_community + '\n')
 
     bgp_cfg.bgp_address_family[addr_family.type].write(neigh_cxt + 'activate\n')
 
@@ -386,15 +572,18 @@ def _print_bgp_address_family_cfg(bgp_cfg, neigh_ip, addr_family):
         bgp_cfg.bgp_address_family[addr_family.type].write(
                 neigh_cxt + 'prefix-list ' + addr_family.filter_out_prefix_list + ' out\n')
         out_filter_or_rmap = True
+
     # RM_IN
     if addr_family.filter_in_rmap != None:
         bgp_cfg.bgp_address_family[addr_family.type].write(
                 neigh_cxt + 'route-map ' + addr_family.filter_in_rmap + ' in\n')
+
     # RM_OUT
     if addr_family.filter_out_rmap != None:
         bgp_cfg.bgp_address_family[addr_family.type].write(
                 neigh_cxt + 'route-map ' + addr_family.filter_out_rmap + ' out\n')
         out_filter_or_rmap = True
+
     # AS_PATH_PREPEND
     if not out_filter_or_rmap and bgp_cfg.as_path_prepend:
         if addr_family.type == IPv4_UNICAST:
@@ -405,6 +594,16 @@ def _print_bgp_address_family_cfg(bgp_cfg, neigh_ip, addr_family):
                 neigh_cxt + ' route-map ' + AS_PREPEND_RMAP_V6 + ' out\n')
 
 def _print_bgp_neighbors_cfg(bgp_cfg, neighbor):
+    """
+    API prints bgp neighbor config to bgp_json file.
+
+    Parameters
+    ----------
+    * `bgp_cfg` : BGP class variables have BGP config saved in it for 
+                  particular router,
+    * `neighbor` : Neighbor for which config needs to be written
+    """
+
     neigh_ip = IpAddressMsg_to_str(neighbor.ip_address)
     neigh_cxt = 'neighbor ' + neigh_ip + ' '
     bgp_cfg.bgp_neighbors.write(
@@ -437,32 +636,20 @@ def _print_bgp_neighbors_cfg(bgp_cfg, neighbor):
             return False
         _print_bgp_address_family_cfg(bgp_cfg, neigh_ip, addr_family)
 
-
-def _print_ipv6_prefix_list(bgp_cfg, name, action):
-    bgp_cfg.prefix_lists.write('ipv6 prefix-list ' + name + ' ' + action + '\n')
-
-def _print_as_prepand_access_list(bgp_cfg):
-    _print_ipv6_prefix_list(bgp_cfg, IPV6_PREFIXLIST_RSVD1, 'permit  any')
-
-def _print_as_prepand_rmap(bgp_cfg, local_as, repeat = 3):
-    as_prepend = (str(local_as) + ' ') * repeat
-    _print_as_prepand_access_list(bgp_cfg)
-    bgp_cfg.route_maps.write('route-map ' + AS_PREPEND_RMAP_V4 + ' permit  10\n')
-    bgp_cfg.route_maps.write(
-        'match ip address ' + IPV4_ACCESSLIST_NUMBER_RSVD1 + '\n')
-    bgp_cfg.route_maps.write('set  as-path  prepend ' + as_prepend + '\n')
-    bgp_cfg.route_maps.write('route-map ' + AS_PREPEND_RMAP_V6 + ' permit  10\n')
-    bgp_cfg.route_maps.write('set as-path  prepend ' + as_prepend + '\n')
-
-
 def Bgp_cfg(bgp_cfg):
+    """
+    API calls internal APIs to print bgp config to bgp_json file.
+
+    Parameters
+    ----------
+    * `bgp_cfg` : BGP class variables have BGP config saved in it for 
+                  particular router,
+    """
+
     if not bgp_cfg.is_bgp_configured:
         logger.debug('BGP is disabled')
         return
     bgp = bgp_cfg.routing_pb.bgp_config
-    if bgp_cfg.is_standby:
-        bgp_cfg.as_path_prepend = True
-        _print_as_prepand_rmap(bgp_cfg, bgp.local_as)
     _print_bgp_global_cfg(bgp_cfg, bgp.local_as,
                           bgp_cfg.routing_pb.routing_global['router_id'],
                           bgp.ecmp, bgp.graceful_restart)
@@ -471,10 +658,17 @@ def Bgp_cfg(bgp_cfg):
 
 def redist_cfg(bgp_cfg, ADDR_TYPE):
     """
-    To redistribute static and connected  routes for given router.
+    API to redistribute static and/or connected routes to BGP 
+    for any router.
 
+    Parameters
+    ----------
     * `bgp_cfg` : bgp config file to save router's bgp config
     * `ADDR_TYPE` : ip type, ipv4/6
+    
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     try:
@@ -483,23 +677,21 @@ def redist_cfg(bgp_cfg, ADDR_TYPE):
                 af_modifier = IPv4_UNICAST
             else:
                 af_modifier = IPv6_UNICAST
-            if bgp_cfg.routing_pb.redistribute_static == True:
-		if bgp_cfg.routing_pb.redistribute_static_route_map != None:
-                    bgp_cfg.bgp_address_family[af_modifier].write(
-                    'redistribute static route-map {} \n'.\
-	 	    format(bgp_cfg.routing_pb.redistribute_static_route_map))
-		else:
-		    bgp_cfg.bgp_address_family[af_modifier].write(
-                                'redistribute static \n')
+	    if bgp_cfg.routing_pb.redistribute_static == True:
+		bgp_cfg.bgp_address_family[af_modifier].write(
+                              'redistribute static \n')
+	    elif bgp_cfg.routing_pb.redistribute_static_route_map != None:
+                bgp_cfg.bgp_address_family[af_modifier].write(
+                   'redistribute static route-map {} \n'.\
+	 	   format(bgp_cfg.routing_pb.redistribute_static_route_map))
 
             if bgp_cfg.routing_pb.redistribute_connected == True:
-		if bgp_cfg.routing_pb.redistribute_connected_route_map != None:
-                    bgp_cfg.bgp_address_family[af_modifier].write(
+                bgp_cfg.bgp_address_family[af_modifier].write(
+                          'redistribute connected\n')	
+	    elif bgp_cfg.routing_pb.redistribute_connected_route_map != None:
+                bgp_cfg.bgp_address_family[af_modifier].write(
                     'redistribute connected route-map {} \n'.\
 	 	    format(bgp_cfg.routing_pb.redistribute_connected_route_map))
-		else:
-                    bgp_cfg.bgp_address_family[af_modifier].write(
-                                'redistribute connected\n')
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -510,26 +702,61 @@ def redist_cfg(bgp_cfg, ADDR_TYPE):
 
 # Helper class for Community list configuration
 class Community:
-    def __init__(self, community, community_type, community_action, community_number):
+    """ BGP community list configuration builder helper class """
+
+    def __init__(self, community, community_type, community_action, \
+	community_number):
+	""" Initialization function for community list config creation
+	
+	Parameters
+	----------
+	* `community` :  Community-list dentifier, large-community-list 
+	* `community_type` :  Standard or Expanded
+	* `community_action` : Permit or Deny
+	* `community_number` :  Community number/attribute
+	"""
+
         self.community = community
         self.community_type = community_type
         self.community_action = community_action
         self.community_number = community_number
 
 class CommunityList:
+    """ BGP Community-list name configuration """
+
     def __init__(self, name):
+	"""
+	Initialization function 
+
+	Parameters
+	----------
+	* `name` : Community-list name
+	"""
+
         self.comm_list_uuid_name = name
         self.community = []
-    def add_community(self, community):
-        self.community.append(community)
 
-class Expression:
-    def __init__(self, match_community_sg_condition, regular_expression, community_list):
-        self.regular_expression = regular_expression
-        self.match_community_sg_condition = match_community_sg_condition
-        self.community_list = community_list
+    def add_community(self, community):
+	""" 
+	Add new community-list to BGP configuration 
+       
+	Parameters
+	----------
+	* `community` : Object of Community class
+	"""
+
+	self.community.append(community)
 
 def community_list_cfg(bgp_cfg):
+    """
+    API prints community list config to bgp_json file.
+
+    Parameters
+    ----------
+    * `bgp_cfg` : BGP class variables have BGP config saved in it for 
+                  particular router,
+    """
+
     if bgp_cfg.routing_pb.community_lists == None:
         return
     for communities in bgp_cfg.routing_pb.community_lists:
@@ -542,16 +769,22 @@ def community_list_cfg(bgp_cfg):
                 action = 'deny'
 
             bgp_cfg.community_list.write(' '.join([
-                'bgp', str(community.community) , str(community.community_type), name, action, str(community.community_number), '\n']))
+                'bgp', str(community.community) , str(community.community_type),\
+			 name, action, str(community.community_number), '\n']))
 
-# These APIs will used by testcases
+# These APIs will be used by testcases
 def find_ibgp_and_ebgp_peers_in_topology(peer_type, topo):
     """
-    It will find ebgp/ibgp peer
+    API to find ebgp/ibgp peers.
 
+    Parameters
+    ----------
     * `peer_type` : type of bgp neighborship, ebgp/ibgp
     * `topo`  : json file data
 
+    Returns
+    -------
+    peer dict, having ebgp/ibgp peers name.
     """
 
     peers = {}
@@ -584,16 +817,38 @@ def find_ibgp_and_ebgp_peers_in_topology(peer_type, topo):
 
 def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
     """
-    Modify or delete router-id for a given router
+    Modify: existing router-id would be modified to user defined
+    router-id
+    Delete: statically assigned router-id would be deleted
+    Once config is modified it will be loaded to router.
 
+    Parameters
+    ----------
     * `action :  action to be performed, modify/delete
-    * `input_dict` :  for which router/s router-id should modified or deleted
     * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
-    """
-    logger.info("Entering lib API: modify_delete_router_id()")
+    * `input_dict` : defines for which router/s router-id should
+		      modified or deleted
+    Usage
+    -----
+    # Modify router-id to 1.1.1.1 for router r1 and 2,2,2,2 for router r2
+    input_dict = {
+        'r1': { 'router_id': '1.1.1.1' }},
+        'r2': { 'router_id': '2.2.2.2' }}
+    result = modify_delete_router_id('modify', input_dict, CWD, tgen, topo)
 
+    # Delete router-id for router r1 and r2
+    input_dict = {
+ 	"router_ids": ["r1", "r2"] }
+    result = modify_delete_router_id('delete', input_dict, CWD, tgen, topo)    
+
+    Returns
+    -------
+    errormsg(str) or True
+    """
+   
+    logger.info("Entering lib API: modify_delete_router_id()")
     try:
         if action == 'modify':
             for router in input_dict.keys():
@@ -633,16 +888,40 @@ def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
 
 def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
     """
-    Modify admin distance for given static route/s
+    User will pass input_dict, to define for which router and neighbor
+    keepalivetimer and holddowntimer needs to be modified. 
 
+    Parameters
+    ----------
     * `ADDR_TYPE` :  ip_type, ipv4/ipv6
-    * `input_dict` :  for which static route/s admin distance should modified
     * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
-    """
-    logger.info("Entering lib API: modify_bgp_timers()")
+    * `input_dict` : defines for router's neighbor user wants to 
+                     modify BGP timers
+    Usage
+    -----
+    # Modify BGP timers for neighbors r2 and r3 of router r1
+    input_dict = {
+        "r1": {
+           "bgp": {
+               "bgp_neighbors":{
+                  "r2":{
+                      "keepalivetimer": 90,
+                      "holddowntimer": 270, },
+                  "r3":{
+                      "keepalivetimer": 50,
+                      "holddowntimer": 150, }
+                   }}}}
 
+    result = modify_bgp_timers('ipv4', input_dict, CWD, tgen, topo)
+    
+    Returns
+    -------
+    errormsg(str) or True
+    """
+    
+    logger.info("Entering lib API: modify_bgp_timers()")
     try:
         for router in input_dict.keys():
             # Reset config for routers
@@ -695,16 +974,39 @@ def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
 def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
                                              topo):
     """
-    Advertise network using network command
+    API to advertise defined networks to BGP. Configuration would be updated
+    to BGP address-family for given router.
 
+    Parameters
+    ----------
     * `ADDR_TYPE` : ip type, ipv4/6
-    * `input_dict` :  for which static route/s admin distance should modified
     * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
-    """
-    logger.info("Entering lib API: advertise_networks_using_network_command()")
+    * `input_dict` :  defines how many networks needs to be advertised for any given 
+		      router
+    Usage
+    -----
+    To advertise network from router r1
+    * start_ip : Start ip to generate IPs
+    * no_of_network(Optional) : Number of IPs needs to be generated, which will 
+    be advertised using network command, it can be ignored if only one network
+    (ex - 200.50.1.0/32) needs to advertised.
+    input_dict = {
+      'r1': {
+         'advertise_networks': [{'start_ip': '100.50.1.0/32', 'no_of_network': 5},
+         			{'start_ip': '150.50.1.0/32', 'no_of_network': 5},
+         			{'start_ip': '200.50.1.0/32'}]
+        }}
+    
+    result = advertise_networks_using_network_command('ipv4', input_dict, tgen, CWD, topo)
 
+    Returns
+    -------
+    errormsg(str) or True
+    """
+
+    logger.info("Entering lib API: advertise_networks_using_network_command()")
     try:
         for router in input_dict.keys():
             networks = []
@@ -749,17 +1051,36 @@ def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
 
 def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
-    Modify existing AS number
+    API reads local_as and remote_as from user defined input_dict and 
+    modify router's ASNs accordingly. Router's config is modified and
+    recent/changed config is loadeded to router.
 
+    Parameters
+    ----------
     * `ADDR_TYPE` : ip type, ipv4/6
-    * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
     * `topo`  : json file data
+    * `input_dict` :  defines for which router ASNs needs to be modified
+
+    Usage
+    -----
+    To modify ASNs for router r1
+    input_dict = {
+       "r1": {
+            "local_as": 131079,
+            "bgp_neighbors": {
+                    "r2": {
+                        "remote_as": 131079,
+                    }}}}
+    result = modify_AS_number('ipv4', input_dict, tgen, CWD, topo)   
+ 
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: modify_AS_number()")
-
     try:
         for router in input_dict.keys():
             networks = []
@@ -815,26 +1136,45 @@ def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
 
 def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
-    redistribute static or connected routes or networks
+    API will read config from input dictionary and create redistribute
+    static, connected or with route maps config. Recent/changef config 
+    will be loaded to router.
 
+    Paramters
+    ---------
     * `ADDR_TYPE` : ip type, ipv4/6
-    * `input_dict` :  for which router routes has to be redistributed as static
-                      or connected
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
     * `topo`  : json file data
+    * `input_dict` : defines for which router, static, connnected and 
+                     route maps needs to be redistributed
+    
+    Usage
+    -----
+    # To redistribute static and connected both
+    input_dict = {
+        'r1': {
+            "redistribute": [{"static": True}, \
+                                {"connected": True}]
+        }}
+    # To redistribute static routes with route-map
+    input_dict = {
+         'r1': {
+            "redistribute": [{"static": {"route-map": "RMAP_NAME"}},\
+                                 {"connected": True}]
+    }}
+    result = redistribute_static_routes('ipv4', input_dict, tgen, CWD, topo) 
+
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: redistribute_static_routes_to_bgp()")
-
     try:
         global bgp_cfg
         for router in input_dict.keys():
             if "redistribute" in input_dict[router]:
-                networks = []
-
-                # Reset config for routers
-                #bgp_cfg[router].reset_it()
 
 		bgp_cfg[router].routing_pb.redistribute_static_route_map = None
 		bgp_cfg[router].routing_pb.redistribute_connected_route_map = None
@@ -873,21 +1213,57 @@ def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
 
 def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
-    configure bgp neighbors prefix lists
+    API to create BGP address-family configuration for any given router.
+    User will define config from input_dict which will be applied to 
+    particular bgp neighbor and loaded to router.
 
+    Paramaters
+    ----------
     * `ADDR_TYPE` : ip type ipv4/ipv6
-    * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
     * `topo`  : json file data
-    """
-    logger.info("Entering lib API: configure_bgp_neighbors()")
+    * `input_dict` :  defines for which bgp neighbor config needs to 
+  		      applied
 
+    Usage
+    ------
+    # To apply route-map "RMAP_OUT" to neighbor r2 of router r1 in OUT
+    direction
+    input_dict = {
+        'r1': {
+           'neighbor_config': {
+                'r2': {
+                    "route_map":{
+                           'RMAP_OUT': 'OUT'
+                    }}}}}
+    # To apply prefix-list "pf_list1" to neighbor r2 of router r1 in OUT
+    direction
+    input_dict = {
+        'r1': {
+           'neighbor_config': {
+                'r2': {
+                    "prefix_list":{
+                           'pf_list1': 'OUT'
+                    }}}}}
+    # To enable next-hop-self to neighbor r2 of router r1
+    input_dict = {
+        'r1': {
+           'neighbor_config': {
+                'r2': {
+                    "next_hop_self": True 
+                    }}}}
+    result = configure_bgp_neighbors('ipv4', input_dict, tgen, CWD, topo)   
+ 
+    Returns
+    -------
+    errormsg(str) or True
+    """
+    
+    logger.info("Entering lib API: configure_bgp_neighbors()")
     try:
         for router in input_dict.keys():
             for neighbor in input_dict[router]['neighbor_config'].keys():
-                # Reset config for routers
-                #bgp_cfg[router].reset_it()
 
                 # Loopback interface
                 bgp_neighbors = topo['routers'][router]["bgp"]["bgp_neighbors"]
@@ -962,36 +1338,34 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
 					["next_hop_self"]
 
                     if ADDR_TYPE == "ipv4":
+                        af_modifier = IPv4_UNICAST
                         addr = Address(ADDR_TYPE_IPv4, nh_ip, None)
-                        neighbor = bgp_cfg[router].routing_pb.bgp_config.get_neighbor(\
-				   IPv4_UNICAST, addr)
-                        neighbor.add_address_family(IPv4_UNICAST, True, None, None,\
-				    None, None, next_hop_self = nh_self)
                     else:
+                        af_modifier = IPv6_UNICAST
                         addr = Address(ADDR_TYPE_IPv6, None, nh_ip)
-                        neighbor = bgp_cfg[router].routing_pb.bgp_config.get_neighbor(\
-				   IPv6_UNICAST, addr)
-                        neighbor.add_address_family(IPv6_UNICAST, True, None, None,\
+
+                    neighbor = bgp_cfg[router].routing_pb.bgp_config.get_neighbor(\
+				   IPv4_UNICAST, addr)
+                    neighbor.add_address_family(af_modifier, True, None, None,\
 				    None, None, next_hop_self = nh_self)
 
                 # Apply no send-community
                 elif "no_send_community" in input_dict[router]['neighbor_config']\
                                         [neighbor]:
-                    no_send_community = input_dict[router]['neighbor_config'][neighbor]\
+                    community = input_dict[router]['neighbor_config'][neighbor]\
                                         ["no_send_community"]
 
                     if ADDR_TYPE == "ipv4":
+                        af_modifier = IPv4_UNICAST
                         addr = Address(ADDR_TYPE_IPv4, nh_ip, None)
-                        neighbor = bgp_cfg[router].routing_pb.bgp_config.get_neighbor(\
-                                   IPv4_UNICAST, addr)
-                        neighbor.add_address_family(IPv4_UNICAST, True, None, None,\
-                                    None, None, next_hop_self = nh_self)
                     else:
+                        af_modifier = IPv6_UNICAST
                         addr = Address(ADDR_TYPE_IPv6, None, nh_ip)
-                        neighbor = bgp_cfg[router].routing_pb.bgp_config.get_neighbor(\
-                                   IPv6_UNICAST, addr)
-                        neighbor.add_address_family(IPv6_UNICAST, True, None, None,\
-                                    None, None, next_hop_self = nh_self)
+
+                    neighbor = bgp_cfg[router].routing_pb.bgp_config.get_neighbor(\
+                                   IPv4_UNICAST, addr)
+                    neighbor.add_address_family(IPv4_UNICAST, True, None, None,\
+                                    None, None, no_send_community = community)
 
             Bgp_cfg(bgp_cfg[router])
             redist_cfg(bgp_cfg[router], ADDR_TYPE)
@@ -1009,16 +1383,48 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
 
 def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
-    Create community lists
+    API reads data from user defined input_dict dictionary and create bgp
+    community list config. Recent/changed config will be loaded to router.
 
+    Parameters
+    ----------
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
-    * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
     * `CWD`  : caller's current working directory
     * `topo`  : json file data
-    """
-    logger.info("Entering lib API: create_community_lists()")
+    * `input_dict` :  defines for which router community list needs to be 
+		      created
+    Usage
+    -----
+    # To create standard large-community-lists named LC_1_STD and LC_1_STD
+    for router r1
+    input_dict = {
+        'r1': {
+            'large-community-list': {
+                'standard': {
+                     'LC_1_STD': [{"action": "PERMIT", "attribute":\
+                                    "2:1:1 2:1:2 1:2:3"}],
+                     'LC_2_STD': [{"action": "PERMIT", "attribute":\
+                                    "3:1:1 3:1:2"}]
+                }}}}
 
+    # To create expanded large-community-list named LC_1_EXP for
+    router r1
+    input_dict = {
+        'r4': {
+            'large-community-list': {
+                'expanded': {
+                     'LC_1_EXP': [{"action": "PERMIT", "attribute":\
+                                    "1:1:200 1:2:* 3:2:1"}]
+                }}}}
+    result = create_community_lists('ipv4', input_dict, tgen, CWD, topo)
+    
+    Returns
+    -------
+    errormsg(str) or True
+    """
+
+    logger.info("Entering lib API: create_community_lists()")
     try:
         for router in input_dict.keys():
             if "community-list" in input_dict[router] or \
@@ -1031,11 +1437,6 @@ def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                     for comm_type in input_dict[router][comm_list].keys():
                         for comm_name in input_dict[router][comm_list][comm_type].\
                             keys():
-                                
-			    for comm in bgp_cfg[router].routing_pb.community_lists:
-                                if comm.comm_list_uuid_name == comm_name:
-                                    errormsg = ("Community list is already exists")
-                                    return errormsg
                             
 			    for comm_dict in input_dict[router][comm_list][comm_type]\
                                 [comm_name]:
@@ -1065,18 +1466,39 @@ def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: create_community_lists()")
     return True
 
+#############################################
 ## Verification APIs
+#############################################
 def verify_router_id(input_dict, tgen, topo):
     """
-    This API is to verify router-id for any router.
+    Running command "show ip bgp json" for DUT and reading router-id
+    from input_dict and verifying with command output.
 
-    * `input_dict`: input dictionary, have details of Device Under Test, for
-                    which user wants to test the data
+    Parameters
+    ----------
     * `tgen`: topogen object
     * `topo`: input json file data
-    """
-    logger.info("Entering lib API: verify_router_id()")
+    * `input_dict`: input dictionary, have details of Device Under Test, for
+                    which user wants to test the data
+    Usage
+    -----
+    # Verify if router-id for r1 is 12.12.12.12
+    input_dict = {
+        'r1':{
+            'router_id': '12.12.12.12'
+        }
+    # Verify that router-id for r1 is highest interface ip
+    input_dict = {
+        "router_ids": ["r1"]
+    }
+    result = verify_router_id(input_dict, tgen, topo) 
 
+    Returns
+    -------
+    errormsg(str) or True 
+    """
+    
+    logger.info("Entering lib API: verify_router_id()")
     if "router_ids" in input_dict:
         for dut in input_dict["router_ids"]:
             for router, rnode in tgen.routers().iteritems():
@@ -1129,15 +1551,28 @@ def verify_router_id(input_dict, tgen, topo):
 
 def verify_bgp_convergence(ADDR_TYPE, tgen, topo):
     """
-    This API is to verify BGP-Convergence on any router.
+    API will verify if BGP is converged with in the given time frame.
+    Running "show bgp summary json" command and verify bgp neighbor
+    state is established,
 
+    Parameters
+    ----------
     * `ADDR_TYPE`: ip_type, ipv4/ipv6
     * `tgen`: topogen object
     * `topo`: input json file data
+
+    Usage
+    -----
+    # To veriry is BGP is converged for all the routers used in 
+    topology
+    results = verify_bgp_convergence('ipv4', tgen, topo)
+    
+    Returns
+    -------
+    errormsg(str) or True 
     """
 
     logger.info("Entering lib API: verify_bgp_confergence()")
-
     for router, rnode in tgen.routers().iteritems():
         logger.info('Verifying BGP Convergence on router {}:'.format(router))
 
@@ -1209,21 +1644,28 @@ def verify_bgp_convergence(ADDR_TYPE, tgen, topo):
 
 def clear_bgp(ADDR_TYPE, tgen, dut):
     """
-    This API is to clear bgp neighborship.
+    This API is to clear bgp neighborship by running
+    clear ip bgp */clear bgp ipv6 * command, 
 
+    Parameters
+    ----------
     * `ADDR_TYPE`: ip type ipv4/ipv6
     * `tgen`: topogen object
     * `dut`: device under test
+  
+    Usage
+    -----
+    clear_bgp('ipv4', tgen, 'r1') 
     """
 
     logger.info("Entering lib API: clear_bgp()")
-
     for router, rnode in tgen.routers().iteritems():
         if router != dut:
             continue
 
         # Clearing BGP
-        logger.info('Clearing BGP neighborship for router {}..'.format(router))
+        logger.info('Clearing BGP neighborship for router {}..'.\
+               format(router))
         if ADDR_TYPE == "ipv4":
             rnode.vtysh_cmd("clear ip bgp *")
 	elif ADDR_TYPE == "ipv6":
@@ -1231,16 +1673,29 @@ def clear_bgp(ADDR_TYPE, tgen, dut):
 	sleep(5)
 
     logger.info("Exiting lib API: clear_bgp()")
-    return True
 
 def clear_bgp_and_verify(ADDR_TYPE, tgen, dut, topo):
     """
-    This API is to clear bgp neighborship and verify.
+    This API is to clear bgp neighborship and verify bgp neighborship
+    is coming up(BGP is converged) usinf "show bgp summary json" command
+    and also verifying for all bgp neighbors uptime before and after
+    clear bgp sessions is different as the uptime must be changed once
+    bgp sessions are cleared using "clear ip bgp */clear bgp ipv6 *" cmd. 
 
+    Parameters
+    ----------
     * `ADDR_TYPE`: ip type ipv4/ipv6
     * `tgen`: topogen object
     * `dut`: device under test
     * `topo`: input json file data
+
+    Usage
+    -----
+    result = clear_bgp_and_verify('ipv4', tgen, 'r1', topo)
+
+    Returns
+    -------
+    errormsg(str) or True 
     """
 
     logger.info("Entering lib API: clear_bgp_and_verify()")
@@ -1438,17 +1893,36 @@ def clear_bgp_and_verify(ADDR_TYPE, tgen, dut, topo):
 
 def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
     """
-    This API is to verify bgp timers and functionality.
+    API will run "show ip bgp neighbor json" command and get bgp timers for 
+    DUT and verify with input_dict data. To veirfy bgp timers functonality
+    we are shutting down peer interface and verifying BGP neighborship is 
+    going down exactly at hold down timer. 
 
+    Parameters
+    ----------
     * `ADDR_TYPE`: ip type, ipv4/ipv6
     * `tgen`: topogen object
-    * `input_dict`: having details like - for which router, bgp timers needs
-                    to be verified
     * `topo`: input json file data
+    * `input_dict`: defines for which router, bgp timers needs to be verified
+
+    Usage:
+    # To verify BGP timers for neighbor r2 of router r1
+    input_dict = {
+        "r1": {
+           "bgp": {
+               "bgp_neighbors":{
+                  "r2":{
+                      "keepalivetimer": 5,
+                      "holddowntimer": 15,
+                   }}}}}
+    result = verify_bgp_timers_and_functionality('ipv4', tgen, input_dict, topo)
+
+    Returns
+    -------
+    errormsg(str) or True 
     """
 
     logger.info("Entering lib API: verify_bgp_timers_and_functionality()")
-
     sleep(5)
     for dut in input_dict.keys():
         router_list = tgen.routers()
@@ -1512,7 +1986,8 @@ def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
                     ["messageStats"]["keepalivesSent"]
 		
                 # Shutdown interface
-		logger.info("Shutting down interface r2-r1-eth0 on router: {}..".format(bgp_neighbor))
+		logger.info("Shutting down interface r2-r1-eth0 on router: {}..".\
+			format(bgp_neighbor))
                 topotest.interface_set_status(router_list[bgp_neighbor], "r2-r1-eth0",
                                               ifaceaction=False)
 
@@ -1568,7 +2043,7 @@ def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
                                         logger.info("BGP neighborship has gone down in {} sec for "
                                                     "neighbor {}".format(timer, bgp_neighbor))
 
-                # Keep alive message count before shutting down neighbor interface
+                # Keep alive message count after shutting down neighbor interface
                 show_ip_bgp_neighbor_json = rnode.vtysh_cmd("show ip bgp neighbor json", isjson=True)
                 keepalive_msg_count_after = show_ip_bgp_neighbor_json[neighbor_ip]["messageStats"]\
                     ["keepalivesSent"]
@@ -1590,17 +2065,34 @@ def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
 
 def verify_AS_numbers(ADDR_TYPE, tgen, input_dict, topo):
     """
-    This API is to verify AS numbers
+    This API is to verify AS numbers for given DUT by running 
+    "show ip bgp neighbor json" command. Local AS and Remote AS 
+    will ve verified with input_dict data and command output.
 
+    Parameters
+    ----------
     * `ADDR_TYPE` : ip type, ipv4/ipv6
     * `tgen`: topogen object
-    * `input_dict`: having details like - for which router, AS numbers needs to
-                    be verified
     * `topo`: input json file data
+    * `input_dict`: defines - for which router, AS numbers needs to be verified
+
+    Usage
+    -----
+    input_dict = {
+        "r1": {
+            "local_as": 131079,
+            "bgp_neighbors": {
+                    "r2": {
+                        "remote_as": 131079,
+                    }}}}
+    result = verify_AS_numbers('ipv4', tgen, input_dict, topo)
+
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: verify_AS_numbers()")
-
     for dut in input_dict.keys():
         for router, rnode in tgen.routers().iteritems():
             if router != dut:
@@ -1666,11 +2158,13 @@ def verify_AS_numbers(ADDR_TYPE, tgen, input_dict, topo):
     logger.info("Exiting lib API: verify_AS_numbers()")
     return True
 
-
 def verify_bgp_attributes(ADDR_TYPE, dut, tgen, static_routes, rmap_name,
                           input_dict):
     """
-    This API is to verify AS numbers
+    API will verify BGP attributes set by Route-map for given prefix and
+    DUT. it will run "show bgp ipv4/ipv6 {prefix_address} json" command 
+    in DUT to verify BGP attributes set by route-map, Set attributes 
+    values will be read from input_dict and verified with command output. 
 
     * `ADDR_TYPE` : ip type, ipv4/ipv6
     * `dut`: Device Under Test
@@ -1678,12 +2172,29 @@ def verify_bgp_attributes(ADDR_TYPE, dut, tgen, static_routes, rmap_name,
     * `static_routes`: Static Routes for which BGP set attributes needs to be
                        verified
     * `rmap_name`: route map name for which set criteria needs to be verified
-    * `input_dict`: having details like - for which router, AS numbers needs
+    * `input_dict`: defines for which router, AS numbers needs
                     to be verified
+    Usage
+    -----
+    # To verify BGP attribute "localpref" set to 150 and "med" set to 30
+    for prefix 10.0.20.1/32 in router r3.
+    input_dict = {
+      "r3": {
+         "route_maps": {
+            "rmap_match_pf_list1": [{"action": "PERMIT", \
+				   "match": {"prefix_list": "pf_list_1"},\
+			           "set": {"localpref": 150, "med": 30}}],
+            }}}
+    static_routes (list) = ["10.0.20.1/32"]
+    result = verify_bgp_attributes('ipv4', "r4", tgen, static_routes, \
+			          "rmap_match_pf_list1", input_dict)
+  
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: verify_bgp_attributes()")
-
     for router, rnode in tgen.routers().iteritems():
         if router != dut:
             continue
@@ -1714,32 +2225,55 @@ def verify_bgp_attributes(ADDR_TYPE, dut, tgen, static_routes, rmap_name,
                                                            rmap_dict["set"][
                                                            criteria]))
                                     else:
-                                        errormsg=("Failed: Verifying BGP"
-                                                  " attribute {} for route:{}"
-                                                  " in router: {}, expected"
-                                                  " value: {} but found: {}".
-                                                  format(criteria, static_route,
-                                                         dut,
-                                                         rmap_dict["set"][criteria],
-                                                         show_bgp_json['paths'][0][criteria]))
+                                        errormsg = \
+					 ("Failed: Verifying BGP"
+                                         "attribute {} for route:{}"
+                                         " in router: {}, expected"
+                                         " value: {} but found: {}".
+                                         format(criteria, static_route,
+                                               dut,
+                                               rmap_dict["set"][criteria],
+                                               show_bgp_json['paths'][0][criteria]))
                                         return errormsg
 
     logger.info("Exiting lib API: verify_bgp_attributes()")
     return True
 
-def verify_best_path_as_per_bgp_attribute(ADDR_TYPE, dut, input_dict, tgen, attribute):
+def verify_best_path_as_per_bgp_attribute(ADDR_TYPE, dut, input_dict, tgen,\
+					  attribute):
     """ 
-    This API is to find and verify best path according to BGP attributes.
+    API is to verify best path according to BGP attributes for given routes.
+    "show bgp ipv4/6 json" command will be run and verify best path according
+    to shortest as-path, highest local-preference and med, lowest weight and 
+    route origin IGP>EGP>INCOMPLETE. 
 
+    Parameters
+    ----------
     * `ADDR_TYPE` : ip type, ipv4/ipv6
-    * `dut`: Device Under Test, for which user wants to test the data
-    * `input_dict`: having route details, which will help to calculate best path
+    * `dut`: Device Under Test
     * `tgen` : topogen object
     * `attribute` : calculate best path using this attribute
+    * `input_dict`: defines different routes to calculate for which route
+                    best path is selected
+
+    Usage
+    -----
+    # To verify best path for routes 200.50.2.0/32 and 200.60.2.0/32 from 
+    router r7 to router r1(DUT) as per shortest as-path attribute
+    input_dict = {
+        'r7': {
+            'advertise_networks': [{'start_ip': '200.50.2.0/32'},
+                                   {'start_ip': '200.60.2.0/32'}]
+        }}
+    attribute = "localpref"
+    result = verify_best_path_as_per_bgp_attribute('ipv4', "r1", input_dict,\
+				                    tgen,  attribute)
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: verify_best_path_as_per_bgp_attribute()")
-
     router_list = tgen.routers()
     for router, rnode in router_list.iteritems():
         if router != dut:
@@ -1841,19 +2375,41 @@ def verify_best_path_as_per_bgp_attribute(ADDR_TYPE, dut, input_dict, tgen, attr
         logger.info("Exiting lib API: verify_best_path_as_per_bgp_attribute()")
     return True
 
-def verify_best_path_as_per_admin_distance(ADDR_TYPE, dut, input_dict, tgen, attribute):
+def verify_best_path_as_per_admin_distance(ADDR_TYPE, dut, input_dict, \
+						     tgen, attribute):
     """ 
-    This API is to find and verify best path as per admin distance
+    API is to verify best path according to admin distance for given
+    route. "show ip/ipv6 route json" command will be run and verify
+    best path accoring to shortest admin distanc.
 
+    Parameters
+    ----------
     * `ADDR_TYPE` : ip type, ipv4/ipv6
-    * `dut`: Device Under Test, for which user wants to test the data
-    * `input_dict`: having route details, which will help to calculate best path
+    * `dut`: Device Under Test
     * `tgen` : topogen object
-    * `attribute` : calculate best path using this attribute
+    * `attribute` : calculate best path using admin distance
+    * `input_dict`: defines different routes with different admin distance
+                    to calculate for which route best path is selected
+    Usage
+    -----
+    # To verify best path for route 200.50.2.0/32 from  router r2 to 
+    router r1(DUT) as per shortest admin distance which is 60.
+    input_dict = {
+        "r2": {
+            "static_routes": [{"network": "200.50.2.0/32", \
+			     "admin_distance": 80, "next_hop": "10.0.0.14"},
+                              {"network": "200.50.2.0/32", \
+			     "admin_distance": 60, "next_hop": "10.0.0.18"}]
+        }}
+    attribute = "localpref"
+    result = verify_best_path_as_per_bgp_attribute('ipv4', "r1", input_dict,\
+                                                    tgen,  attribute)
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: verify_best_path_as_per_admin_distance()")
-
     router_list = tgen.routers()
     for router, rnode in router_list.iteritems():
         if router != dut:
@@ -1923,21 +2479,33 @@ def verify_best_path_as_per_admin_distance(ADDR_TYPE, dut, input_dict, tgen, att
         logger.info("Exiting lib API: verify_best_path_as_per_admin_distance()")
         return True
 
-
 def verify_bgp_community(addr_type, dut, tgen, network, input_dict = None):
     """
-    This API is to BGP communitiess
+    API to veiryf BGP large community is attached in route for any given 
+    DUT by running "show bgp ipv4/6 {route address} json" command.
 
+    Parameters
+    ----------
     * `addr_type` : ip type, ipv4/ipv6
     * `dut`: Device Under Test
     * `tgen`: topogen object
     * `network`: network for which set criteria needs to be verified
-    * `input_dict`: having details like - for which router, AS numbers needs
-                    to be verified
+    * `input_dict`: having details like - for which router, community and 
+		    values needs to be verified
+    Usage
+    -----
+    networks = ['200.50.2.0/32']
+    input_dict = {
+        'largeCommunity': '2:1:1 2:2:2 2:3:3 2:4:4 2:5:5'
+    }
+    result = verify_bgp_community('ipv4', "r4", tgen, networks, input_dict)
+
+    Returns
+    -------
+    errormsg(str) or True
     """
 
     logger.info("Entering lib API: verify_bgp_community()")
-
     for router, rnode in tgen.routers().iteritems():
         if router != dut:
             continue
@@ -1981,3 +2549,63 @@ def verify_bgp_community(addr_type, dut, tgen, network, input_dict = None):
 
         logger.info("Exiting lib API: verify_bgp_community()")
         return True
+
+def verify_create_community_list(input_dict, tgen):
+    """
+    API is to verify if large community list is created for any given DUT in
+    input_dict by running "sh bgp large-community-list {"comm_name"} detail"
+    command.
+
+    Parameters
+    ----------
+    * `tgen`: topogen object
+    * `input_dict`: having details like - for which router, large community
+                    needs to be verified
+    Usage
+    -----
+    input_dict = {
+        'r1': {
+            'large-community-list': {
+                'standard': {
+                     'Test1': [{"action": "PERMIT", "attribute":\
+                                    ""}]
+                }}}}
+    result = verify_create_community_list(input_dict, tgen)
+
+    Returns
+    -------
+    errormsg(str) or True
+    """
+
+    logger.info("Entering lib API: verify_create_community_list()")
+
+
+    for dut in input_dict.keys():
+        for router, rnode in tgen.routers().iteritems():
+            if router != dut:
+                continue
+
+            logger.info('Verifying large-community is created for dut {}:'\
+			.format(router))
+
+	    for comm_type in  input_dict[router]["large-community-list"].keys():
+	        for comm_name in input_dict[router]["large-community-list"]\
+		    [comm_type].keys():	
+                    show_bgp_community = \
+		    rnode.vtysh_cmd("show bgp large-community-list {} detail".\
+		    format(comm_name))
+		    logger.info(show_bgp_community)
+
+		    # Verify community list and type
+		    if comm_type in show_bgp_community and comm_type in show_bgp_community: 
+		        logger.info("BGP {} large-community-list {} is created".\
+			format(comm_type, comm_name))
+		    else:
+                        errormsg = ("BGP {} large-community-list {} is not created".\
+                        format(comm_type, comm_name))
+			return errormsg
+		    
+        logger.info("Exiting lib API: verify_create_community_list()")
+        return True
+
+
