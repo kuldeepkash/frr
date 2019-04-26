@@ -8,8 +8,8 @@
 "routers": 
 {
     "r1": {
-	"lo": {"ipv4": "auto", "ipv6": "auto"},
 	"links": {
+		"lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
                 "r2-link1": {"ipv4": "auto", "ipv6": "auto"},
                 "r2-link2": {"ipv4": "auto", "ipv6": "auto"}
         },
@@ -23,8 +23,8 @@
 			    "addr_type": "ipv4"
 			}}}}},
     "r2": {
-	"lo": { "ipv4": "auto", "ipv6": "auto"},
         "links": {
+		"lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
 	        "r1-link1": {"ipv4": "auto", "ipv6": "auto"},
 	        "r1-link2": {"ipv4": "auto", "ipv6": "auto"},
 	        "r3-link1": {"ipv4": "auto", "ipv6": "auto"},
@@ -49,8 +49,8 @@
         "redistribute": [{"static": true}, {"connected": true}]
     },
     "r3": {
-        "lo": { "ipv4": "auto", "ipv6": "auto"},
         "links": {
+		"lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
                 "r2-link1": {"ipv4": "auto", "ipv6": "auto"},
                 "r2-link2": {"ipv4": "auto", "ipv6": "auto"}
         },

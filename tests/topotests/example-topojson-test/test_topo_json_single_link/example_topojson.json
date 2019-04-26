@@ -8,9 +8,10 @@
 "routers": 
 {
     "r1": {
-	"lo": {"ipv4": "auto", "ipv6": "auto"},
 	"links": {
-	        "r2": {"ipv4": "auto", "ipv6": "auto"}
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
+	        "r2": {"ipv4": "auto", "ipv6": "auto"},
+	        "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
         "bgp": { 
                 "local_as": "100",
@@ -20,10 +21,16 @@
                         "peer": {
 			    "dest_link": "r1",
 			    "addr_type": "ipv4"
+			}},
+                    "r3": {
+                        "remote_as": "100",
+                        "peer": {
+			    "dest_link": "r1",
+			    "addr_type": "ipv4"
 			}}}}},
     "r2": {
-	"lo": { "ipv4": "auto", "ipv6": "auto"},
         "links": {
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
 	        "r1": {"ipv4": "auto", "ipv6": "auto"},
 	        "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
@@ -47,14 +54,21 @@
         "redistribute": [{"static": true}, {"connected": true}]
     },
     "r3": {
-        "lo": { "ipv4": "auto", "ipv6": "auto"},
         "links": {
-                "r2": {"ipv4": "auto", "ipv6": "auto"}
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
+                "r2": {"ipv4": "auto", "ipv6": "auto"},
+                "r1": {"ipv4": "auto", "ipv6": "auto"}
         },
         "bgp": {
                 "local_as": "100",
                 "bgp_neighbors": {
                     "r2": {
+                        "remote_as": "100",
+                        "peer": {
+                            "dest_link": "r3",
+                            "addr_type": "ipv4"
+			}},
+                    "r1": {
                         "remote_as": "100",
                         "peer": {
                             "dest_link": "r3",

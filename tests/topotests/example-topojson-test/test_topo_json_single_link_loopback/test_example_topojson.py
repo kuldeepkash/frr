@@ -102,7 +102,7 @@ def setup_module(mod):
 
     # Starting topology, create tmp files which are loaded to routers
     #  to start deamons and then start routers
-    start_topology(tgen, CWD)
+    start_topology(tgen)
 
     # This function only purpose is to create configuration
     # as defined in input json file.
@@ -114,7 +114,7 @@ def setup_module(mod):
     # config, prefix list config
 
     # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
+    build_config_from_json(tgen, topo)
 
     logger.info("Running setup_module() done")
 
@@ -130,7 +130,7 @@ def teardown_module(mod):
     tgen = get_topogen()
 
     # Stop toplogy and Remove tmp files
-    stop_topology(tgen, CWD)
+    stop_topology(tgen)
 
 def test_bgp_convergence():
     " Test BGP daemon convergence "

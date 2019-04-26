@@ -100,9 +100,11 @@ def setup_module(mod):
     tgen = Topogen(TemplateTopo, mod.__name__)
     # ... and here it calls Mininet initialization functions.
 
+    net = Mininet(controller=None, topo=topo)
+
     # Starting topology, create tmp files which are loaded to routers
     #  to start deamons and then start routers
-    start_topology(tgen, CWD)
+    start_topology(tgen)
 
     # This function only purpose is to create configuration
     # as defined in input json file.
@@ -114,7 +116,7 @@ def setup_module(mod):
     # config, prefix list config
 
     # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
+    build_config_from_json(tgen, topo)
 
     logger.info("Running setup_module() done")
 
@@ -130,7 +132,7 @@ def teardown_module(mod):
     tgen = get_topogen()
 
     # Stop toplogy and Remove tmp files
-    stop_topology(tgen, CWD)
+    stop_topology(tgen)
 
 def test_bgp_convergence():
     " Test BGP daemon convergence "
@@ -170,7 +172,7 @@ def test_static_routes():
     input_dict = topo["routers"]
     result = verify_rib('ipv4', dut, tgen, input_dict, next_hop = next_hop)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
-
+    
     logger.info("Testcase " + tc_name + " :Passed \n")
 
     # Uncomment next line for debugging
