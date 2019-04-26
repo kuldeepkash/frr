@@ -30,7 +30,9 @@ from lib.bgp import *
 
 def build_topo_from_json(tgen, topo):
     """ 
-    Builds topology from json 
+    Reads configuration from JSON file. Adds routers, creates interface
+    names dynamically and link routers as defined in JSON to create 
+    topology. Assigns IPs dynamically to all interfaces of each router.
 
     * `tgen`: Topogen object
     * `topo`: json file data
@@ -64,6 +66,17 @@ def build_topo_from_json(tgen, topo):
         if 'links' in topo['routers'][curRouter]:
             for destRouterLink, data in sorted(topo['routers'][curRouter]['links'].\
 		iteritems()):
+	        # Loopback interfaces
+        	if 'type' in data and data['type'] == 'loopback':
+                    if topo['routers'][curRouter]['links'][destRouterLink]['ipv4'] == 'auto':
+                        topo['routers'][curRouter]['links'][destRouterLink]['ipv4'] = '{}{}.{}/{}'.\
+                        format(topo['lo_prefix']['ipv4'], number_to_row(curRouter),\
+                        number_to_column(curRouter), topo['lo_prefix']['v4mask'])
+            	    if topo['routers'][curRouter]['links'][destRouterLink]['ipv6'] == 'auto':
+                	topo['routers'][curRouter]['links'][destRouterLink]['ipv6'] = '{}{}:{}/{}'.\
+                	format(topo['lo_prefix']['ipv6'], number_to_row(curRouter),\
+                	number_to_column(curRouter), topo['lo_prefix']['v6mask'])
+
 		if "-" in destRouterLink:
 	            # Spliting and storing destRouterLink data in tempList
                     tempList = destRouterLink.split("-")
@@ -114,20 +127,10 @@ def build_topo_from_json(tgen, topo):
 				'{}/{}'.format(ipv6Next + 1, topo['link_ip_start']['v6mask'])
                             ipv6Next = ipaddress.IPv6Address(int(ipv6Next) + ipv6Step)
 
-	# Loopback interfaces
-        if 'lo' in topo['routers'][curRouter]:
-            if topo['routers'][curRouter]['lo']['ipv4'] == 'auto':
-                topo['routers'][curRouter]['lo']['ipv4'] = '{}{}.{}/{}'.\
-		format(topo['lo_prefix']['ipv4'], number_to_row(curRouter),\
-		 number_to_column(curRouter), topo['lo_prefix']['v4mask'])
-            if topo['routers'][curRouter]['lo']['ipv6'] == 'auto':
-                topo['routers'][curRouter]['lo']['ipv6'] = '{}{}:{}/{}'.\
-		format(topo['lo_prefix']['ipv6'], number_to_row(curRouter),\
-		number_to_column(curRouter), topo['lo_prefix']['v6mask'])
-
 def build_config_from_json(tgen, topo, CWD):
     """ 
-    Builds configuration from json 
+    Reads initial configuraiton from JSON for each router, builds
+    configuration and loads its to router.
 
     * `tgen`: Topogen object
     * `topo`: json file data

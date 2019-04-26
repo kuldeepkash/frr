@@ -176,33 +176,36 @@ def create_bgp_cfg(router, topo):
             peer = neighbors[neighbor_name]['peer']
             dest_link = peer['dest_link']
             ADDR_TYPE = peer['addr_type']
-            # TODO
-            # Add support for multiple loopback address
+            nh_details = topo['routers'][neighbor_name]
             # Loopback interface
-            nb_name = topo['routers'][neighbor_name]
             if "source_link" in peer and peer['source_link'] == 'lo':
-                ip_addr = nb_name['lo'][ADDR_TYPE].split('/')[0]
-                update_source = topo['routers']['{}'.format(router)]['lo'][
-                    ADDR_TYPE].split('/')[0]
-                if ADDR_TYPE == "ipv4":
-                    af_modifier = IPv4_UNICAST
-                else:
-                    af_modifier = IPv6_UNICAST
+	        for destRouterLink, data in sorted(nh_details['links'].\
+                    iteritems()):
+	            if 'type' in data and data['type'] == 'loopback':
+                        if dest_link == destRouterLink:
+                            ip_addr = nh_details['links'][destRouterLink][ADDR_TYPE].\
+				      split('/')[0]
+                            update_source = topo['routers']['{}'.format(router)][
+			    'links'][destRouterLink][ADDR_TYPE].split('/')[0]
+                            if ADDR_TYPE == "ipv4":
+                                af_modifier = IPv4_UNICAST
+                            else:
+                                af_modifier = IPv6_UNICAST
 
-                addr = Address(af_modifier, ip_addr, None)
-                neighbor = bgp.add_neighbor(af_modifier, addr, remote_as,
+                            addr = Address(af_modifier, ip_addr, None)
+                            neighbor = bgp.add_neighbor(af_modifier, addr, remote_as,
                                             keepalivetimer, holddowntimer,
                                             None, update_source, 2)
-                neighbor.add_address_family(af_modifier, True, None, None,
+                            neighbor.add_address_family(af_modifier, True, None, None,
                                             None, None)
 
             # Physical interface
             else:
-                for destRouterLink, data in sorted(nb_name['links'].
+	        for destRouterLink in sorted(nh_details['links'].\
                                                    iteritems()):
-                    if dest_link == destRouterLink:
-                        ip_addr = nb_name['links'][destRouterLink][ADDR_TYPE].\
-                                          split('/')[0]
+                    if dest_link == destRouterLink[0]:
+                        ip_addr = nh_details['links'][destRouterLink[0]][ADDR_TYPE].\
+                                      split('/')[0]
                         if ADDR_TYPE == "ipv4":
                             af_modifier = IPv4_UNICAST
                         else:
@@ -210,11 +213,11 @@ def create_bgp_cfg(router, topo):
 
                         addr = Address(af_modifier, ip_addr, None)
                         neighbor = bgp.add_neighbor(af_modifier, addr,
-                                                    remote_as, keepalivetimer,
-                                                    holddowntimer, None,
-                                                    None, 0)
+                                            remote_as, keepalivetimer,
+                                            holddowntimer, None,
+                                            None, 0)
                         neighbor.add_address_family(af_modifier, True, None,
-                                                    None, None, None)
+                                            None, None, None)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -943,8 +946,12 @@ def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
 
                     # Loopback interface
                     if "source_link" in peer and peer['source_link'] == 'lo':
-                        neighbor_ip = topo['routers'][bgp_neighbor]['lo'][ADDR_TYPE].\
-				 	  split('/')[0]
+                        for destRouterLink, data in topo['routers'][bgp_neighbor][
+			    'links'].iteritems():
+			    if 'type' in data and data['type'] == 'loopback':
+                                if dest_link == destRouterLink:
+                                    neighbor_ip = topo['routers'][bgp_neighbor][
+				    'links'][destRouterLink][ADDR_TYPE].split('/')[0]
                     else:
                         # Physical interface
                         for destRouterLink in topo['routers'][bgp_neighbor]['links'].\
@@ -1094,18 +1101,20 @@ def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
             for neighbor in neighbors.keys():
                 remote_as = input_dict[router]["bgp_neighbors"][neighbor]['remote_as']
 
-                # loopback interface
                 bgp_neighbors = topo['routers'][router]["bgp"]["bgp_neighbors"]
-                if "source_link" in bgp_neighbors[neighbor]['peer'] \
-                    and bgp_neighbors[neighbor]['peer']['source_link'] == 'lo':
-                    ip_address = topo['routers'][neighbor]['lo'][
-                        ADDR_TYPE].split("/")[0]
+		peer_json = bgp_neighbors[neighbor]['peer']
+                dest_link = peer_json['dest_link']
+
+                # loopback interface
+                if "source_link" in peer_json and peer_json['source_link'] == 'lo':
+                    for destRouterLink, data in topo['routers'][neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == destRouterLink:
+                                ip_address = topo['routers'][neighbor]['links'][
+                                destRouterLink][ADDR_TYPE].split("/")[0]
                 else:
                     # Physical interface
-                    # Peer Details
-                    peer = bgp_neighbors[neighbor]['peer']
-                    dest_link = peer['dest_link']
-
                     for destRouterLink in topo['routers'][neighbor]['links'].\
                             iteritems():
                         if dest_link == destRouterLink[0]:
@@ -1265,19 +1274,21 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
         for router in input_dict.keys():
             for neighbor in input_dict[router]['neighbor_config'].keys():
 
-                # Loopback interface
+                # Peer details
                 bgp_neighbors = topo['routers'][router]["bgp"]["bgp_neighbors"]
-                if "source_link" in bgp_neighbors[neighbor]['peer'] \
-                    and bgp_neighbors[neighbor]['peer']['source_link'] == 'lo':
-                    nh_ip = topo['routers'][neighbor]['lo'][
-                        ADDR_TYPE].split("/")[0]
-
+                peer_json = bgp_neighbors[neighbor]['peer']
+                dest_link = peer_json['dest_link']
+                
+		# Loopback interface
+                if "source_link" in peer_json and peer_json['source_link'] == 'lo':
+                    for destRouterLink, data in topo['routers'][neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == destRouterLink[0]:
+                                nh_ip = topo['routers'][neighbor]['links'][
+					destRouterLink][ADDR_TYPE].split("/")[0]
                 else:
                     # Physical interface
-                    # Peer details
-                    peer = bgp_neighbors[neighbor]['peer']
-                    dest_link = peer['dest_link']
-
                     for destRouterLink in topo['routers'][neighbor]['links'].\
                             iteritems():
                         if dest_link == destRouterLink[0]:
@@ -1512,7 +1523,7 @@ def verify_router_id(input_dict, tgen, topo):
 
                 # Once router-id is deleted, highest interface ip should become
                 # router-id
-                router_id = find_interface_with_greater_ip('ipv4', topo, dut)
+                router_id = find_interface_with_greater_ip(topo, dut)
                 router_id = ipaddress.IPv4Address(unicode(router_id))
 
                 if router_id == router_id_out:
@@ -1591,18 +1602,23 @@ def verify_bgp_convergence(ADDR_TYPE, tgen, topo):
                 dest_link = bgp_neighbors[bgp_neighbor]["peer"]["dest_link"]
                 # Loopback interface
                 if "source_link" in bgp_neighbors[bgp_neighbor]["peer"] and \
-                        bgp_neighbors[bgp_neighbor]["peer"]["source_link"] == 'lo':
-                    neighbor_ip = topo['routers'][bgp_neighbor]['lo'][
-                        ADDR_TYPE].split("/")[0]
-                    if ADDR_TYPE  == 'ipv4':
-                        nh_state = show_bgp_json["ipv4Unicast"]["peers"][
-                            neighbor_ip]["state"]
-                    else:
-                        nh_state = show_bgp_json["ipv6Unicast"]["peers"][
-                            neighbor_ip]["state"]
+                    bgp_neighbors[bgp_neighbor]["peer"]["source_link"] == 'lo':
+                    for neighborLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == neighborLink:
+                                neighbor_ip = \
+			        topo['routers'][bgp_neighbor]['links'][neighborLink][
+				    ADDR_TYPE].split("/")[0]
+                                if ADDR_TYPE == 'ipv4':
+                                    nh_state = show_bgp_json["ipv4Unicast"]["peers"][
+                                        neighbor_ip]["state"]
+                                else:
+                                    nh_state = show_bgp_json["ipv6Unicast"]["peers"][
+                                        neighbor_ip]["state"]
 
-                    if nh_state == "Established":
-                        no_of_peer += 1
+                                if nh_state == "Established":
+                                    no_of_peer += 1
                 else:
                     # Physical interface
                     for neighborLink in topo['routers'][bgp_neighbor]['links'].\
@@ -1731,29 +1747,33 @@ def clear_bgp_and_verify(ADDR_TYPE, tgen, dut, topo):
             for bgp_neighbor, data in bgp_neighbors.iteritems():
                 dest_link = bgp_neighbors[bgp_neighbor]['peer']['dest_link']
                 # Loopback interface
-                if "source_link" in bgp_neighbors[bgp_neighbor]['peer'] and \
-                        bgp_neighbors[bgp_neighbor]['peer']['source_link'] == 'lo':
-                    neighbor_ip = topo['routers'][bgp_neighbor]['lo'][
-                        ADDR_TYPE].split("/")[0]
-                    if ADDR_TYPE == 'ipv4':
-                        nh_state = show_bgp_json['ipv4Unicast']['peers'][
-                            neighbor_ip]['state']
+		peer_json = bgp_neighbors[bgp_neighbor]['peer']
+                if "source_link" in peer_json and peer_json['source_link'] == 'lo':
+                    for neighborLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == neighborLink:
+                                neighbor_ip = topo['routers'][bgp_neighbor][
+				'links'][neighborLink][ADDR_TYPE].split("/")[0]
+                                if ADDR_TYPE == 'ipv4':
+                                    nh_state = show_bgp_json['ipv4Unicast'][
+					'peers'][neighbor_ip]['state']
 
-                        # Peer up time dictionary
-                        peerUptime_before_clear_bgp[bgp_neighbor] = \
-                            show_bgp_json['ipv4Unicast']['peers'][neighbor_ip][
-                                          'peerUptime']
-                    else:
-                        nh_state = show_bgp_json['ipv6Unicast']['peers'][
-                            neighbor_ip]['state']
+                       	            # Peer up time dictionary
+                                    peerUptime_before_clear_bgp[bgp_neighbor] = \
+                            	    show_bgp_json['ipv4Unicast']['peers'][
+					neighbor_ip]['peerUptime']
+                    		else:
+                        	    nh_state = show_bgp_json['ipv6Unicast'][
+				    'peers'][neighbor_ip]['state']
 
-                        # Peer up time dictionary
-                        peerUptime_before_clear_bgp[bgp_neighbor] = \
-                            show_bgp_json['ipv6Unicast']['peers'][neighbor_ip][
-                                'peerUptime']
+                            	    # Peer up time dictionary
+                        	    peerUptime_before_clear_bgp[bgp_neighbor] = \
+                            	    show_bgp_json['ipv6Unicast']['peers'][
+				    neighbor_ip]['peerUptime']
 
-                    if nh_state == 'Established':
-                        no_of_peer += 1
+		                if nh_state == 'Established':
+                                    no_of_peer += 1
                 else:
                     # Physical interface
                     for neighborLink in topo['routers'][bgp_neighbor]['links'].\
@@ -1824,27 +1844,31 @@ def clear_bgp_and_verify(ADDR_TYPE, tgen, dut, topo):
             for bgp_neighbor, data in bgp_neighbors.iteritems():
                 dest_link = bgp_neighbors[bgp_neighbor]['peer']['dest_link']
                 # Loopback interface
-                if "source_link" in bgp_neighbors[bgp_neighbor]['peer'] and \
-                        bgp_neighbors[bgp_neighbor]['peer']['source_link'] == 'lo':
-                    neighbor_ip = topo['routers'][bgp_neighbor]['lo'][
-                        ADDR_TYPE].split("/")[0]
-                    if ADDR_TYPE == 'ipv4':
-                        nh_state = show_bgp_json['ipv4Unicast']['peers'][
-                            neighbor_ip]['state']
-                        # Peer up time dictionary
-                        peerUptime_after_clear_bgp[bgp_neighbor] = \
+		peer_json = bgp_neighbors[bgp_neighbor]['peer']
+                if "source_link" in peer_json and peer_json['source_link'] == 'lo':
+                    for neighborLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == neighborLink:
+                                neighbor_ip = topo['routers'][bgp_neighbor][
+				'links'][neighborLink][ADDR_TYPE].split("/")[0]
+                            if ADDR_TYPE == 'ipv4':
+                                nh_state = show_bgp_json['ipv4Unicast']['peers'][
+                                           neighbor_ip]['state']
+                                # Peer up time dictionary
+                                peerUptime_after_clear_bgp[bgp_neighbor] = \
                                         show_bgp_json['ipv4Unicast']['peers'][
                                             neighbor_ip]['peerUptime']
-                    else:
-                        nh_state = show_bgp_json['ipv6Unicast']['peers'][
-                            neighbor_ip]['state']
-                        # Peer up time dictionary
-                        peerUptime_after_clear_bgp[bgp_neighbor] = \
+                    	    else:
+                                nh_state = show_bgp_json['ipv6Unicast']['peers'][
+                                          neighbor_ip]['state']
+                                # Peer up time dictionary
+                                peerUptime_after_clear_bgp[bgp_neighbor] = \
                                         show_bgp_json['ipv6Unicast']['peers'][
                                             neighbor_ip]['peerUptime']
 
-                    if nh_state == 'Established':
-                        no_of_peer += 1
+	                    if nh_state == 'Established':
+        	                no_of_peer += 1
                 else:
                     # Physical interface
                     for neighborLink in topo['routers'][bgp_neighbor]['links'].\
@@ -1948,8 +1972,12 @@ def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
 
                 # Loopback interface
                 if "source_link" in peer and peer['source_link'] == 'lo':
-                    neighbor_ip = topo['routers'][bgp_neighbor]['lo'][ADDR_TYPE].\
-                        split('/')[0]
+                    for destRouterLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == destRouterLink:
+                                neighbor_ip = topo['routers'][bgp_neighbor]['links']\
+					[destRouterLink][ADDR_TYPE].split('/')[0]
                 else:
                     # Physical Interface
                     for destRouterLink in topo['routers'][bgp_neighbor]['links'].\
@@ -1961,7 +1989,7 @@ def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
 
                 # Verify HoldDownTimer for neighbor
                 bgpHoldTimeMsecs = show_ip_bgp_neighbor_json[neighbor_ip]\
-                    ["bgpTimerHoldTimeMsecs"]
+                                   ["bgpTimerHoldTimeMsecs"]
                 if bgpHoldTimeMsecs != holddowntimer * 1000:
                     errormsg = "Verifying holddowntimer for bgp neighbor {} under dut {},\
                     found: {} but expected: {}".format(neighbor_ip, router,
@@ -1997,30 +2025,35 @@ def verify_bgp_timers_and_functionality(ADDR_TYPE, tgen, input_dict, topo):
                     logger.info("Waiting for {} sec..".format(keepalivetimer))
                     sleep (keepalivetimer)
                     show_bgp_json = rnode.vtysh_cmd("show bgp summary json", isjson=True)
-                    dest_link = topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]\
-                        ["peer"]["dest_link"]
-                    # Loopback interface
-                    if "source_link" in topo['routers'][router]['bgp']["bgp_neighbors"]\
-                            [bgp_neighbor]["peer"] and \
-                        topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]\
-                                ["peer"]["source_link"] == 'lo':
-                        neighbor_ip = topo['routers'][bgp_neighbor]['lo'][ADDR_TYPE].\
-                            split("/")[0]
-                        if ADDR_TYPE  == 'ipv4':
-                            nh_state = show_bgp_json["ipv4Unicast"]["peers"][neighbor_ip]\
-                                ["state"]
-                        else:
-                            nh_state = show_bgp_json["ipv6Unicast"]["peers"][neighbor_ip]\
-                                ["state"]
+		    
+		    # Peer details
+		    peer_json = \
+		    topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]["peer"]
+                    dest_link = peer_json["dest_link"]
 
-                        if timer == holddowntimer:
-                            if nh_state == "Established":
-                                errormsg = ("BGP neighborship has not gone down in {} sec for"
-                                            " neighbor {}".format(timer, bgp_neighbor))
-                                return errormsg
-                            else:
-                                logger.info("BGP neighborship has gone down in {} sec for "
-                                            "neighbor {}".format(timer, bgp_neighbor))
+                    # Loopback interface
+                    if "source_link" in peer_json and peer_json["source_link"] == 'lo':
+                        for neighborLink, data in topo['routers'][bgp_neighbor]['links'].\
+			    iteritems():
+			    if 'type' in data and data['type'] == 'loopback':
+                                if dest_link == neighborLink:
+                                    neighbor_ip = topo['routers'][bgp_neighbor]['links'][
+	    				neighborLink][ADDR_TYPE].split("/")[0]
+                                    if ADDR_TYPE  == 'ipv4':
+                                        nh_state = show_bgp_json["ipv4Unicast"]["peers"][
+		  				neighbor_ip]["state"]
+                            	    else:
+                            	        nh_state = show_bgp_json["ipv6Unicast"]["peers"][
+					        neighbor_ip]["state"]
+
+	                            if timer == holddowntimer:
+                                        if nh_state == "Established":
+                                             errormsg = ("BGP neighborship has not gone down "
+					     "in {} sec for neighbor {}".format(timer, bgp_neighbor))
+                                             return errormsg
+                            	        else:
+                                	    logger.info("BGP neighborship has gone down in {} sec for"
+                                                 " neighbor {}".format(timer, bgp_neighbor))
                     else:
                         # Physical interface
                         for neighborLink in topo['routers'][bgp_neighbor]['links'].iteritems():
@@ -2113,22 +2146,17 @@ def verify_AS_numbers(ADDR_TYPE, tgen, input_dict, topo):
                 # Loopback interface
                 if "source_link" in bgp_neighbors[bgp_neighbor]["peer"] \
                     and bgp_neighbors[bgp_neighbor]["peer"]["source_link"] == 'lo':
-                    if ADDR_TYPE == "ipv4":
-                        neighbor_ip = router_data['lo'][ADDR_TYPE].split("/")[0]
-                    else:
-                        ADDR_TYPE = 'ipv6'
-                        neighbor_ip = router_data['lo'][ADDR_TYPE].split("/")[0]
+                    for neighborLink, data in router_data['links'].iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+			    if dest_link == neighborLink:
+                                neighbor_ip = router_data['links'][
+				   neighborLink][ADDR_TYPE].split("/")[0]
                 # Physical interface
                 else:
                     for neighborLink in router_data['links'].iteritems():
                         if dest_link == neighborLink[0]:
-                            if ADDR_TYPE == 'ipv4':
-                                neighbor_ip = router_data['links'][
-                                    neighborLink[0]][ADDR_TYPE].split("/")[0]
-                            else:
-                                ADDR_TYPE = 'ipv6'
-                                neighbor_ip = router_data['links'][
-                                    neighborLink[0]][ADDR_TYPE].split("/")[0]
+                            neighbor_ip = router_data['links'][
+                                neighborLink[0]][ADDR_TYPE].split("/")[0]
 
                 # Verify Local AS for router
                 if show_ip_bgp_neighbor_json[neighbor_ip]["localAs"] != local_as:

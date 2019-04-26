@@ -89,7 +89,6 @@ class RoutingPB:
         self.prefix_lists = []
         self.route_maps = []
 
-
 class FRRConfig:
 
     def __init__(self, router, routing_cfg_msg, frrcfg_file):
@@ -412,6 +411,7 @@ def prefixlist_cfg(frr_cfg, ADDR_TYPE):
 class RouteMapMatch:
     def __init__(self):
         self.tag = None
+	self.match_exact = None
         self.prefix_list = []
         self.community_list = []
         self.large_community_list = []
@@ -590,8 +590,14 @@ def handle_match_large_community_list(frr_cfg, routemap, route_map_seq, ADDR_TYP
         seq_id = frr_cfg.get_route_map_seq_id()
         frr_cfg.route_maps.write(' '.join(['route-map', name, action,
                                            str(seq_id), "\n"]))
-        frr_cfg.route_maps.write(' '.join([
-            'match', 'large-community', community, '\n']))
+
+	# Match-exact case
+	if route_map_seq.match.match_exact != None:
+            frr_cfg.route_maps.write(' '.join([
+                'match', 'large-community', community, 'exact-match''\n']))
+	else:
+            frr_cfg.route_maps.write(' '.join([
+                'match', 'large-community', community, '\n']))
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         frr_cfg.route_maps.write("! END of " + name + " - " + str(seq_id) + "\n")
@@ -731,37 +737,34 @@ def generate_ips(ADDR_TYPE, start_ip, no_of_ips):
 
     return ipaddress_list
 
-def find_interface_with_greater_ip(ADDR_TYPE, topo, router):
+def find_interface_with_greater_ip(topo, router):
     """
-    Returns highest interface ip for ipv4/ipv6
+    Returns highest interface ip for ipv4/ipv6. If loopback is there then
+    it will return highest IP from loopback IPs otherwise from physical
+    interface IPs.
 
-    * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `topo`  : json file data
     * `router` : router for which hightest interface should be calculated
     """
 
     link_data = topo['routers'][router]['links']
-    if ADDR_TYPE == "ipv4":
-        if 'lo' in topo['routers'][router]:
-            return topo['routers'][router]['lo']['ipv4'].split('/')[0]
-        interfaces_list = []
-        for destRouter  in sorted(link_data.iteritems()):
-            for link in topo['routers'][curRouter]['links'][destRouter[0]].iteritems():
-                if 'ipv4' in link_data[destRouter[0]][link[0]]:
-                    ip_address = link_data[destRouter[0]][link[0]]['ipv4'].split('/')[0]
-                    interfaces_list.append(ipaddress.IPv4Address(ip_address))
+    lo_list = []
+    interfaces_list = []
+    lo_exists = False
+    for destRouterLink, data in sorted(link_data.iteritems()):
+	if 'type' in data and data['type'] == 'loopback':
+	    lo_exists = True
+	    ip_address = topo['routers'][router]['links'][
+		destRouterLink]['ipv4'].split('/')[0]
+            lo_list.append(ip_address)
+	else:
+	    ip_address = topo['routers'][router]['links'][
+		destRouterLink]['ipv4'].split('/')[0]
+            interfaces_list.append(ip_address)
+    if lo_exists:
+	return sorted(lo_list)[-1]
     else:
-        if 'lo' in topo['routers'][router]:
-            ip_address = topo['routers'][router]['lo']['ipv6'].split('/')[0]
-            return ipaddress.IPv4Address(ip_address)
-        interfaces_list = []
-        for destRouter in sorted(link_data.iteritems()):
-            for link in topo['routers'][curRouter]['links'][destRouter[0]].iteritems():
-                if 'ipv6' in link_data[destRouter[0]][link[0]]:
-                    ip_address = link_data[destRouter[0]][link[0]]['ipv6'].split('/')[0]
-                    interfaceis_list.append(ipaddress.IPv4Address(ip_address))
-
-    return sorted(interfaces_list)[-1]
+        return sorted(interfaces_list)[-1]
 
 def start_topology(tgen, CWD):
     """
@@ -775,7 +778,7 @@ def start_topology(tgen, CWD):
     # Starting topology
     tgen.start_topology()
 
-    # Starting deamons
+    # Starting deamon
     router_list = tgen.routers()
     for rname, router in router_list.iteritems():
         try:
@@ -829,6 +832,41 @@ def stop_topology(tgen, CWD):
             os.system("rm -rf {}".format(rname))
         except IOError as (errno, strerror):
             logger.error("I/O error({0}): {1}".format(errno, strerror))
+
+def stop_router(tgen, CWD, router):
+    """
+    Router's current config would be saved to /etc/frr/ for each deamon
+    and router and its deamons would be stopped.
+
+    * `tgen`  : topogen object
+    * `CWD` : Caller's current working directory
+    * `router`: Device under test
+    """
+
+    router_list = tgen.routers()
+
+    # Saving router config to /etc/frr, which will be loaded to router
+    # when it starts
+    router_list[router].vtysh_cmd("write memory")
+
+    # Stop router
+    router_list[router].stop()
+
+def start_router(tgen, CWD, router):
+    """
+    Router will started and config would be loaded from /etc/frr/ for each
+    deamon
+
+    * `tgen`  : topogen object
+    * `CWD` : Caller's current working directory
+    * `router`: Device under test
+    """
+
+    router_list = tgen.routers()
+
+    # Router and its deamons would be started and config would be loaded to 
+    # for each deamon from /etc/frr
+    router_list[router].start()
 
 def load_config_to_router(tgen, CWD, routerName):
     """
@@ -942,22 +980,24 @@ def create_interfaces_cfg(curRouter, topo):
     try:
         interfaces = Interfaces()
         c_router = topo['routers'][curRouter]
-        if 'lo' in c_router:
-            interface_name = 'lo'
-            lo_addresses = []
-            if 'ipv4' in c_router['lo']:
-                lo_addresses.append(c_router['lo']['ipv4'])
-            if 'ipv6' in c_router['lo']:
-                lo_addresses.append(c_router['lo']['ipv6'])
-            interfaces.add_interface(interface_name, lo_addresses)
         for destRouterLink, data in sorted(c_router['links'].iteritems()):
-            interface_name = c_router['links'][destRouterLink]['interface']
-            int_addresses = []
-            if 'ipv4' in c_router['links'][destRouterLink]:
-                int_addresses.append(c_router['links'][destRouterLink]['ipv4'])
-            if 'ipv6' in c_router['links'][destRouterLink]:
-                int_addresses.append(c_router['links'][destRouterLink]['ipv6'])
-            interfaces.add_interface(interface_name, int_addresses)
+            # Loopback interfaces
+            if 'type' in data and data['type'] == 'loopback':
+                interface_name = destRouterLink
+                lo_addresses = []
+                if 'ipv4' in c_router['links'][destRouterLink]:
+                    lo_addresses.append(c_router['links'][destRouterLink]['ipv4'])
+                if 'ipv6' in c_router['links'][destRouterLink]:
+                    lo_addresses.append(c_router['links'][destRouterLink]['ipv6'])
+		interfaces.add_interface(interface_name, lo_addresses)
+	    else:
+                interface_name = c_router['links'][destRouterLink]['interface']
+                int_addresses = []
+                if 'ipv4' in c_router['links'][destRouterLink]:
+                    int_addresses.append(c_router['links'][destRouterLink]['ipv4'])
+                if 'ipv6' in c_router['links'][destRouterLink]:
+                    int_addresses.append(c_router['links'][destRouterLink]['ipv6'])
+                interfaces.add_interface(interface_name, int_addresses)
 
     except Exception as e:
         logger.error(traceback.format_exc())
@@ -976,18 +1016,23 @@ def add_static_route_for_loopback_interfaces(ADDR_TYPE, curRouter, topo, frrcfg)
     * `topo` : json file data
     * `frrcfg` : frr config file
     """
-
+    
     bgp_neighbors = topo['routers'][curRouter]['bgp']['bgp_neighbors']
     for bgp_neighbor in bgp_neighbors.keys():
-        ip_addr = topo['routers'][bgp_neighbor]['lo'][ADDR_TYPE]
-        destRouterLink = bgp_neighbors[bgp_neighbor]['peer']['dest_link']
-        next_hop = topo['routers'][bgp_neighbor]['links']\
- 		       [destRouterLink][ADDR_TYPE].split("/")[0]
+	for destRouterLink, data2 in sorted(topo['routers'][
+	    bgp_neighbor]['links'].iteritems()):
+	    # Loopback interfaces
+            if 'type' in data2 and data2['type'] == 'loopback':
+                lo_ip_addr = topo['routers'][bgp_neighbor][
+			'links'][destRouterLink][ADDR_TYPE]
+	    if curRouter in destRouterLink:
+	        next_hop = topo['routers'][bgp_neighbor]['links'][
+    		           destRouterLink][ADDR_TYPE].split("/")[0]
 
-        if ADDR_TYPE == "ipv4":
-            frrcfg.write("ip route " + ip_addr + " " + next_hop + "\n")
-        else:
-            frrcfg.write("ipv6 route " + ip_addr + " " + next_hop + "\n")
+                if ADDR_TYPE == "ipv4":
+                    frrcfg.write("ip route " + lo_ip_addr + " " + next_hop + "\n")
+                else:
+                    frrcfg.write("ipv6 route " + lo_ip_addr + " " + next_hop + "\n")
 
 def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
     """
@@ -1416,6 +1461,12 @@ def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
                                 elif match_criteria == 'large-community-list':
 				    large_community_lists = []
                                     large_communities = rmap_dict["match"][match_criteria]
+				    
+				    if "match_exact" in rmap_dict["match"]:
+					match.match_exact = rmap_dict["match"]["match_exact"]
+				    else:
+				        match.match_exact = None
+
 				    for large_community in large_communities:
                                         large_community_lists.append(large_community)
                                         match.large_community_list = large_community_lists
@@ -1525,7 +1576,6 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
                     command = "show ipv6 route json"
 
             sleep(2)
-            logger.info('Checking router {} RIB:'.format(router))
             rib_routes_json = rnode.vtysh_cmd(command, isjson=True)
 
             # Verifying output dictionary rib_routes_json is not empty
@@ -1535,6 +1585,7 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
                 return errormsg
 
             if 'static_routes' in input_dict[routerInput]:
+                logger.info('Checking router {} RIB:'.format(router))
                 static_routes = input_dict[routerInput]["static_routes"]
                 for static_route in static_routes:
                     found_routes = []
@@ -1547,7 +1598,7 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
 
                     # Generating IPs for verification
                     ip_list = generate_ips(ADDR_TYPE, network, no_of_ip)
-                    for st_rt in ip_list:
+		    for st_rt in ip_list:
                         st_rt = str(ipaddress.ip_network(unicode(st_rt)))
 
                         st_found = False
@@ -1581,6 +1632,7 @@ def verify_rib(ADDR_TYPE, dut, tgen, input_dict, next_hop = None, protocol = Non
                             " are: {}\n".format(dut, found_routes))
 
             if 'advertise_networks' in input_dict[routerInput]:
+                logger.info('Checking router {} RIB:'.format(router))
                 found_routes = []
                 missing_routes = []
                 advertise_network = input_dict[routerInput]['advertise_networks']
