@@ -111,10 +111,10 @@ def setup_module(mod):
 
     # Starting topology, create tmp files which are loaded to routers
     #  to start deamons and then start routers
-    start_topology(tgen, CWD)
+    start_topology(tgen)
 
     # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
+    build_config_from_json(tgen, topo)
     
     logger.info("Running setup_module() done")
 
@@ -130,7 +130,7 @@ def teardown_module(mod):
     tgen = get_topogen()
 
     # Stop toplogy and Remove tmp files
-    stop_topology(tgen, CWD)
+    stop_topology(tgen)
 
     logger.info("Testsuite end time: {}".\
          	format(time.asctime(time.localtime(time.time()))))
@@ -192,7 +192,7 @@ def test_modify_and_delete_router_id():
 	    'router_id': '33.33.33.33'
 	},
     }
-    result = modify_delete_router_id('modify', input_dict, CWD, tgen, topo)
+    result = modify_delete_router_id('modify', input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying router id once modified
@@ -204,7 +204,7 @@ def test_modify_and_delete_router_id():
     input_dict = {
 	"router_ids": ["r1", "r2", "r3"],
     }
-    result = modify_delete_router_id('delete', input_dict, CWD, tgen, topo)
+    result = modify_delete_router_id('delete', input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying router id once deleted
@@ -279,7 +279,7 @@ def test_BGP_config_with_4byte_AS_number():
             }
         }
     }
-    result = modify_AS_number('ipv4', input_dict, tgen, CWD, topo)
+    result = modify_AS_number('ipv4', input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     result = verify_AS_numbers('ipv4', tgen, input_dict, topo)
@@ -290,7 +290,7 @@ def test_BGP_config_with_4byte_AS_number():
     # Uncomment next line for debugging
     #tgen.mininet_cli()
 
-def test_bgp_timers_functioanlity():
+def test_bgp_timers_functionality():
     """
     Test to modify bgp timers and verify timers functionality.
     """
@@ -306,7 +306,7 @@ def test_bgp_timers_functioanlity():
     logger.info("Testcase started: {} \n".format(tc_name))
 
     # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
+    build_config_from_json(tgen, topo)
 
     # Api call to modfiy BGP timerse
     input_dict = {
@@ -321,7 +321,7 @@ def test_bgp_timers_functioanlity():
 	    }
         }
     }
-    result = modify_bgp_timers('ipv4', input_dict, CWD, tgen, topo)
+    result = modify_bgp_timers('ipv4', input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Api call to clear bgp, so timer modification would take place
@@ -350,7 +350,7 @@ def test_static_routes():
     logger.info("Testcase started: {} \n".format(tc_name))
 
     # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
+    build_config_from_json(tgen, topo)
 
     # Api call to create static routes
     input_dict = {
@@ -358,7 +358,7 @@ def test_static_routes():
             "static_routes": [{"network": "10.0.20.1/32", "no_of_ip": 9, "admin_distance": 100, "next_hop": "10.0.0.2", "tag": 4001}]
         }
     }
-    result = create_static_routes('ipv4', input_dict, tgen, CWD, topo)
+    result = create_static_routes('ipv4', input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Api call to redistribute static routes
@@ -368,7 +368,7 @@ def test_static_routes():
 				{"connected": True}]
 	}
     }
-    result = redistribute_static_routes('ipv4', input_dict_1, tgen, CWD, topo)
+    result = redistribute_static_routes('ipv4', input_dict_1, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying RIB routes
@@ -405,7 +405,7 @@ def test_admin_distance_for_existing_static_routes():
             }
         }
     }
-    result = modify_admin_distance_for_static_routes(input_dict, CWD, tgen, topo)
+    result = modify_admin_distance_for_static_routes(input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying admin distance  once modified
@@ -437,7 +437,7 @@ def test_advertise_network_using_network_command():
 				   {'start_ip': '30.0.0.0/32'}]
     	}
     }
-    result = advertise_networks_using_network_command('ipv4', input_dict, tgen, CWD, topo)
+    result = advertise_networks_using_network_command('ipv4', input_dict, tgen, topo)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying RIB routes
@@ -490,30 +490,19 @@ def test_bgp_with_loopback_interface():
     # test case name
     tc_name = inspect.stack()[0][3]
     logger.info("Testcase started: {} \n".format(tc_name))
+    
+    # Creating configuration from JSON
+    build_config_from_json(tgen, topo)
 
     for routerN in sorted(topo['routers'].iteritems()):
         for bgp_neighbor in topo['routers'][routerN[0]]['bgp']['bgp_neighbors'].iteritems():
+            topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['dest_link'] = 'lo'
             topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['source_link'] = 'lo'
 
     # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
+    build_config_from_json(tgen, topo)
 
-    tgen.mininet_cli()
     # Api call verify whether BGP is converged
-    bgp_convergence = verify_bgp_convergence('ipv4', tgen, topo)
-    if bgp_convergence != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(bgp_convergence)
-
-    # Cleanup to bring config back to physical interface from loopback interface
-    for routerN in sorted(topo['routers'].iteritems()):
-        for bgp_neighbor in topo['routers'][routerN[0]]['bgp']['bgp_neighbors'].iteritems():
-            try:
-                del topo['routers'][routerN[0]]['bgp']['bgp_neighbors'][bgp_neighbor[0]]['peer']['source_link']
-            except KeyError:
-                logger.error("Key: source is not found \n")
-
-    # Creating configuration from JSON
-    build_config_from_json(tgen, topo, CWD)
-    
     bgp_convergence = verify_bgp_convergence('ipv4', tgen, topo)
     if bgp_convergence != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(bgp_convergence)
 

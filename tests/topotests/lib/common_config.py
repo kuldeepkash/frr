@@ -51,7 +51,10 @@ frr_cfg = {}
 CD = os.path.dirname(os.path.realpath(__file__))
 pytestini_path = os.path.join(CD, '../pytest.ini')
 
-# NOTE: to save execution logs to log file frrtest_log_dir must be configured
+# Using tmp dir to save temporary files and configurations
+tmpdir = "/tmp"
+
+# To save execution logs to log file frrtest_log_dir must be configured
 # in `pytest.ini`.
 config = ConfigParser.ConfigParser()
 config.read(pytestini_path)
@@ -172,13 +175,12 @@ class FRRConfig:
         self.prefix_lists.close()
         self.route_maps.close()
 
-def create_common_configuration(ADDR_TYPE, tgen, CWD, topo, router):
+def create_common_configuration(ADDR_TYPE, tgen, topo, router):
     """
     It will save routers common configuration to frr.conf file
 
     * `ADDR_TYPE` : ip type ipv4/ipv6
     * `tgen` : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo` : json file data
     * `router` : current router
     """
@@ -196,7 +198,7 @@ def create_common_configuration(ADDR_TYPE, tgen, CWD, topo, router):
                 continue
 
             rt_cfg = RoutingPB()
-            fname = '{}/{}/{}'.format(CWD, router, FRRCFG_FILE)
+            fname = '{}/{}/{}'.format(tmpdir, router, FRRCFG_FILE)
             frr_cfg[router] = FRRConfig(router, rt_cfg, fname)
 
             input_dict = topo['routers']
@@ -206,22 +208,22 @@ def create_common_configuration(ADDR_TYPE, tgen, CWD, topo, router):
                 interfaces_cfg(frr_cfg[router])
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load configuration to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
             if 'static_routes' in topo['routers'][router]:
-                result = create_static_routes(ADDR_TYPE, input_dict, tgen, CWD,
+                result = create_static_routes(ADDR_TYPE, input_dict, tgen,
                                               topo)
                 assert result == True, ("API: create_static_routes() :Failed"
                                         " \n Error: {}".format(result))
 
             if 'prefix_lists' in topo['routers'][router]:
-                result = create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD,
+                result = create_prefix_lists(ADDR_TYPE, input_dict, tgen, 
                                              topo)
                 assert result == True, ("API: create_prefix_lists() :Failed "
                                         "\n Error: {}".format(result))
 
             if 'route_maps' in topo['routers'][router]:
-                result = create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo)
+                result = create_route_maps(ADDR_TYPE, input_dict, tgen, topo)
                 assert result == True, ("API: create_route_maps() :Failed"
                                         " \n Error: {}".format(result))
 
@@ -766,13 +768,12 @@ def find_interface_with_greater_ip(topo, router):
     else:
         return sorted(interfaces_list)[-1]
 
-def start_topology(tgen, CWD):
+def start_topology(tgen):
     """
     Starting topology, create tmp files which are loaded to routers
     to start deamons and then start routers
 
     * `tgen`  : topogen object
-    * `CWD` : Caller's current working directory
     """
 
     # Starting topology
@@ -782,7 +783,7 @@ def start_topology(tgen, CWD):
     router_list = tgen.routers()
     for rname, router in router_list.iteritems():
         try:
-            os.chdir(CWD)
+            os.chdir(tmpdir)
             # Deleting router named dirs if exists
             if os.path.exists('{}'.format(rname)):
                 os.system("rm -rf {}".format(rname))
@@ -790,7 +791,7 @@ def start_topology(tgen, CWD):
             # Creating rouer named dir and empty zebra.conf bgpd.conf files
             # inside the current directory
             os.mkdir('{}'.format(rname))
-            os.chdir('{}/{}'.format(CWD, rname))
+            os.chdir('{}/{}'.format(tmpdir, rname))
             os.system('touch zebra.conf bgpd.conf')
 
         except IOError as (errno, strerror):
@@ -799,26 +800,25 @@ def start_topology(tgen, CWD):
         # Loading empty zebra.conf file to router, to start the zebra deamon
         router.load_config(
             TopoRouter.RD_ZEBRA,
-            '{}/{}/zebra.conf'.format(CWD, rname)
-            #os.path.join(CWD, '{}/zebra.conf'.format(rname))
+            '{}/{}/zebra.conf'.format(tmpdir, rname)
+            #os.path.join(tmpdir, '{}/zebra.conf'.format(rname))
         )
         # Loading empty bgpd.conf file to router, to start the bgp deamon
         router.load_config(
             TopoRouter.RD_BGP,
-            '{}/{}/bgpd.conf'.format(CWD, rname)
-            #os.path.join(CWD, '{}/bgpd.conf'.format(rname))
+            '{}/{}/bgpd.conf'.format(tmpdir, rname)
+            #os.path.join(tmpdir, '{}/bgpd.conf'.format(rname))
         )
 
     # Starting routers
     logger.info("Starting all routers once topology is created")
     tgen.start_router()
 
-def stop_topology(tgen, CWD):
+def stop_topology(tgen):
     """
     It will stop topology and remove temporary dirs and files.
 
     * `tgen`  : topogen object
-    * `CWD` : Caller's current working directory
     """
 
     # This function tears down the whole topology.
@@ -828,18 +828,17 @@ def stop_topology(tgen, CWD):
     router_list = tgen.routers()
     for rname, router in router_list.iteritems():
         try:
-            os.chdir(CWD)
+            os.chdir(tmpdir)
             os.system("rm -rf {}".format(rname))
         except IOError as (errno, strerror):
             logger.error("I/O error({0}): {1}".format(errno, strerror))
 
-def stop_router(tgen, CWD, router):
+def stop_router(tgen, router):
     """
     Router's current config would be saved to /etc/frr/ for each deamon
     and router and its deamons would be stopped.
 
     * `tgen`  : topogen object
-    * `CWD` : Caller's current working directory
     * `router`: Device under test
     """
 
@@ -852,13 +851,12 @@ def stop_router(tgen, CWD, router):
     # Stop router
     router_list[router].stop()
 
-def start_router(tgen, CWD, router):
+def start_router(tgen, router):
     """
     Router will started and config would be loaded from /etc/frr/ for each
     deamon
 
     * `tgen`  : topogen object
-    * `CWD` : Caller's current working directory
     * `router`: Device under test
     """
 
@@ -868,13 +866,12 @@ def start_router(tgen, CWD, router):
     # for each deamon from /etc/frr
     router_list[router].start()
 
-def load_config_to_router(tgen, CWD, routerName):
+def load_config_to_router(tgen, routerName):
     """
     This API is to create a delta of running config and user defined config,
     upload the delta config to router.
 
     * `tgen` : Topogen object
-    * `CWD`  : caller's current working directory
     * `routerName` : router for which delta config should be generated and uploaded
     """
 
@@ -886,8 +883,8 @@ def load_config_to_router(tgen, CWD, routerName):
             if rname == routerName:
 
                 cfg = router.run("vtysh -c 'show running'")
-                fname = '{}/{}/frr.sav'.format(CWD, rname)
-                dname = '{}/{}/delta.conf'.format(CWD, rname)
+                fname = '{}/{}/frr.sav'.format(tmpdir, rname)
+                dname = '{}/{}/delta.conf'.format(tmpdir, rname)
                 f = open(fname, 'w')
                 for line in cfg.split('\n'):
                     line = line.strip()
@@ -903,10 +900,10 @@ def load_config_to_router(tgen, CWD, routerName):
 
                 try:
                     filenames = ['bgp_json.conf', 'frr_json.conf']
-                    with open('{}/{}/frr.conf'.format(CWD, rname), 'w') as cfg:
+                    with open('{}/{}/frr.conf'.format(tmpdir, rname), 'w') as cfg:
                         for f_name in filenames:
-                            if os.path.exists('{}/{}/{}'.format(CWD, rname, f_name)):
-                                with open('{}/{}/{}'.format(CWD, rname, f_name),
+                            if os.path.exists('{}/{}/{}'.format(tmpdir, rname, f_name)):
+                                with open('{}/{}/{}'.format(tmpdir, rname, f_name),
                                           'r') as infile:
                                     for line in infile:
                                         cfg.write(line)
@@ -916,7 +913,7 @@ def load_config_to_router(tgen, CWD, routerName):
                    return False
 
                 command = '/usr/lib/frr/frr-reload.py  --input {}/{}/frr.sav' \
-                          ' --test {}/{}/frr.conf > {}'.format(CWD, rname, CWD,
+                          ' --test {}/{}/frr.conf > {}'.format(tmpdir, rname, tmpdir,
                                                                rname, dname)
                 result = os.system(command)
 
@@ -1034,14 +1031,13 @@ def add_static_route_for_loopback_interfaces(ADDR_TYPE, curRouter, topo, frrcfg)
                 else:
                     frrcfg.write("ipv6 route " + lo_ip_addr + " " + next_hop + "\n")
 
-def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def create_static_routes(ADDR_TYPE, input_dict, tgen, topo):
     """
     Create  static routes for given router as defined in input_dict
 
     * `ADDR_TYPE` : ip type, ipv4/ipv6
     * `input_dict` : input to create static routes for given router
     * `tgen` : Topogen object
-    * `CWD` : caller's current working directory
     * `topo` : json file data
     """
 
@@ -1100,7 +1096,7 @@ def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 static_rt_cfg(frr_cfg[router])
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load configuration to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1109,12 +1105,11 @@ def create_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
 
     return True
 
-def modify_admin_distance_for_static_routes(input_dict, CWD, tgen, topo):
+def modify_admin_distance_for_static_routes(input_dict, tgen, topo):
     """
     Modify admin distance for given static route/s
 
     * `input_dict` :  for which static route/s admin distance should modified
-    * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
     """
@@ -1140,7 +1135,7 @@ def modify_admin_distance_for_static_routes(input_dict, CWD, tgen, topo):
             static_rt_cfg(frr_cfg[router])
             frr_cfg[router].print_common_config_to_file(topo)
             # Load config to router
-            load_config_to_router(tgen, CWD, router)
+            load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1150,14 +1145,13 @@ def modify_admin_distance_for_static_routes(input_dict, CWD, tgen, topo):
     logger.info("Exiting lib API: modify_admin_distance_for_static_routes")
     return True
 
-def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def create_prefix_lists(ADDR_TYPE, input_dict, tgen, topo):
     """
     Create ip prefix lists
 
     * `ADDR_TYPE`  : ip_type, ipv4/ipv6
     * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
 
@@ -1214,7 +1208,7 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
     except Exception as e:
         errormsg = traceback.format_exc()
         logger.error(errormsg)
@@ -1223,14 +1217,13 @@ def create_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: create_prefix_lists()")
     return True
 
-def delete_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def delete_prefix_lists(ADDR_TYPE, input_dict, tgen, topo):
     """
     Delete ip prefix lists
 
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `input_dict` :  for which router pf_list has to be deleted 
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
     logger.info("Entering lib API: delete_prefix_lists()")
@@ -1272,7 +1265,7 @@ def delete_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
     except Exception as e:
         errormsg = traceback.format_exc()
         logger.error(errormsg)
@@ -1281,14 +1274,13 @@ def delete_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: delete_prefix_lists()")
     return True
 
-def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, topo):
     """
     Modify prefix lists
 
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
     logger.info("Entering lib API: modify_prefix_lists()")
@@ -1349,7 +1341,7 @@ def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
             prefixlist_cfg(frr_cfg[router], ADDR_TYPE)
             frr_cfg[router].print_common_config_to_file(topo)
             # Load config to router
-            load_config_to_router(tgen, CWD, router)
+            load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1359,14 +1351,13 @@ def modify_prefix_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: modify_prefix_lists()")
     return True
 
-def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def create_route_maps(ADDR_TYPE, input_dict, tgen, topo):
     """
-    Create route mapss
+    Create route maps
 
     * `ADDR_TYPE`  : ip_type, ipv4/ipv6
     * `input_dict` :  for which static route/s admin distance should modified
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
 
@@ -1485,7 +1476,7 @@ def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 routemap_cfg(frr_cfg[router], ADDR_TYPE)
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
     except Exception as e:
         errormsg = traceback.format_exc()
         logger.error(errormsg)
@@ -1494,14 +1485,13 @@ def create_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: create_route_maps()")
     return True
 
-def delete_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def delete_route_maps(ADDR_TYPE, input_dict, tgen, topo):
     """
     Delete ip route maps
 
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `input_dict` :  for which router, route map has to be deleted
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     """
     logger.info("Entering lib API: delete_route_maps()")
@@ -1531,7 +1521,7 @@ def delete_route_maps(ADDR_TYPE, input_dict, tgen, CWD, topo):
             routemap_cfg(frr_cfg[router], ADDR_TYPE)
             frr_cfg[router].print_common_config_to_file(topo)
             # Load config to router
-            load_config_to_router(tgen, CWD, router)
+            load_config_to_router(tgen, router)
     except Exception as e:
         errormsg = traceback.format_exc()
         logger.error(errormsg)

@@ -36,7 +36,6 @@ def build_topo_from_json(tgen, topo):
 
     * `tgen`: Topogen object
     * `topo`: json file data
-    * `CWD`: caller's current working directory
     """
 
     logger.info("Testing flow - Building topo####################")
@@ -127,14 +126,13 @@ def build_topo_from_json(tgen, topo):
 				'{}/{}'.format(ipv6Next + 1, topo['link_ip_start']['v6mask'])
                             ipv6Next = ipaddress.IPv6Address(int(ipv6Next) + ipv6Step)
 
-def build_config_from_json(tgen, topo, CWD):
+def build_config_from_json(tgen, topo):
     """ 
     Reads initial configuraiton from JSON for each router, builds
     configuration and loads its to router.
 
     * `tgen`: Topogen object
     * `topo`: json file data
-    * `CWD`: caller's current working directory
     """
 
     logger.info("######## Testing flow - Building configuration ########")
@@ -151,12 +149,12 @@ def build_config_from_json(tgen, topo, CWD):
 
         # Create and load routers common configurations, ex- interface_config, static_routes,
 	#  prefix_lits and route_maps...etc  to router
-        result = create_common_configuration('ipv4', tgen, CWD, topo, curRouter)
+        result = create_common_configuration('ipv4', tgen, topo, curRouter)
 	if result != True : assert False, \
 	    "topojson.create_common_configuration() :Failed \n Error: {}".format(result)
 
         # Create and load bgp and community_list configuration to router
-        result = create_bgp_configuration('ipv4', tgen, CWD, topo, curRouter)
+        result = create_bgp_configuration('ipv4', tgen, topo, curRouter)
 	if result != True : assert False, \
 	   "topojson.create_bgp_configuration() :Failed \n Error: {}".format(result)
 

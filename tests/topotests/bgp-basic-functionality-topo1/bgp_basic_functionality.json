@@ -8,8 +8,8 @@
 "routers": 
 {
     "r1": {
-	"lo": {"ipv4": "auto", "ipv6": "auto"},
 	"links": {
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
                 "r2": {"ipv4": "auto", "ipv6": "auto"},
                 "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
@@ -31,13 +31,10 @@
                         "peer": {
 			    "dest_link": "r1",
 			    "addr_type": "ipv4"
-			}}},
-		"gracefulrestart": true
-	
-    }},
+			}}}}},
     "r2": {
-	"lo": { "ipv4": "auto", "ipv6": "auto"},
         "links": {
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
 	        "r1": {"ipv4": "auto", "ipv6": "auto"},
                 "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
@@ -57,8 +54,8 @@
 			    "addr_type": "ipv4"
 			}}}}},
     "r3": {
-	"lo": { "ipv4": "auto", "ipv6": "auto" },
         "links": {
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
 	        "r1": {"ipv4": "auto", "ipv6": "auto"},
                 "r2": {"ipv4": "auto", "ipv6": "auto"},
                 "r4": {"ipv4": "auto", "ipv6": "auto"}
@@ -85,8 +82,8 @@
 			    "addr_type": "ipv4"
 			}}}}},
     "r4": {
-	"lo": { "ipv4": "auto", "ipv6": "auto" },
         "links": {
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
 	        "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
         "bgp": {

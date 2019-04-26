@@ -227,7 +227,7 @@ def create_bgp_cfg(router, topo):
     logger.info("Exiting lib API: create_bgp_cfg()")
     return bgp
 
-def create_bgp_configuration(ADDR_TYPE, tgen, CWD, topo, router):
+def create_bgp_configuration(ADDR_TYPE, tgen, topo, router):
     """
     API to create object of class BGPConfig and also create bgp_json.conf
     file. It will create BGP and related configurations and save it to
@@ -237,7 +237,6 @@ def create_bgp_configuration(ADDR_TYPE, tgen, CWD, topo, router):
     ----------
     * `ADDR_TYPE` : ip type ipv4/ipv6
     * `tgen` : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo` : json file data
     * `router` : current router
     
@@ -267,7 +266,7 @@ def create_bgp_configuration(ADDR_TYPE, tgen, CWD, topo, router):
 
                 rt_cfg = BGPRoutingPB(router_id)
 
-                fname = '{}/{}/{}'.format(CWD, router, BGPCFG_FILE)
+                fname = '{}/{}/{}'.format(tmpdir, router, BGPCFG_FILE)
                 bgp_cfg[router] = BGPConfig(router, rt_cfg, fname)
                 bgp_cfg[router].is_standby = False
 
@@ -276,11 +275,11 @@ def create_bgp_configuration(ADDR_TYPE, tgen, CWD, topo, router):
                 Bgp_cfg(bgp_cfg[router])
                 bgp_cfg[router].print_bgp_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
                 if 'redistribute' in topo['routers'][router]:
                     result = redistribute_static_routes(ADDR_TYPE, input_dict,
-                                                    tgen, CWD, topo)
+                                                    tgen, topo)
                     assert result is True, ("API: redistribute_static_routes() "
                                         ":Failed \n Error: {}".format(result))
 
@@ -818,7 +817,7 @@ def find_ibgp_and_ebgp_peers_in_topology(peer_type, topo):
 
     return peers
 
-def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
+def modify_delete_router_id(action, input_dict, tgen, topo):
     """
     Modify: existing router-id would be modified to user defined
     router-id
@@ -828,7 +827,6 @@ def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
     Parameters
     ----------
     * `action :  action to be performed, modify/delete
-    * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
     * `input_dict` : defines for which router/s router-id should
@@ -839,12 +837,12 @@ def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
     input_dict = {
         'r1': { 'router_id': '1.1.1.1' }},
         'r2': { 'router_id': '2.2.2.2' }}
-    result = modify_delete_router_id('modify', input_dict, CWD, tgen, topo)
+    result = modify_delete_router_id('modify', input_dict, tgen, topo)
 
     # Delete router-id for router r1 and r2
     input_dict = {
  	"router_ids": ["r1", "r2"] }
-    result = modify_delete_router_id('delete', input_dict, CWD, tgen, topo)    
+    result = modify_delete_router_id('delete', input_dict, tgen, topo)    
 
     Returns
     -------
@@ -867,7 +865,7 @@ def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
                 Bgp_cfg(bgp_cfg[router])
                 bgp_cfg[router].print_bgp_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
         elif action == 'delete':
             for router in input_dict["router_ids"]:
                 # Reset FRR config
@@ -879,7 +877,7 @@ def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
                 Bgp_cfg(bgp_cfg[router])
                 bgp_cfg[router].print_bgp_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -889,7 +887,7 @@ def modify_delete_router_id(action, input_dict, CWD, tgen, topo):
     logger.info("Exiting lib API: modify_delete_router_id()")
     return True
 
-def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
+def modify_bgp_timers(ADDR_TYPE, input_dict, tgen, topo):
     """
     User will pass input_dict, to define for which router and neighbor
     keepalivetimer and holddowntimer needs to be modified. 
@@ -897,7 +895,6 @@ def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
     Parameters
     ----------
     * `ADDR_TYPE` :  ip_type, ipv4/ipv6
-    * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
     * `input_dict` : defines for router's neighbor user wants to 
@@ -917,7 +914,7 @@ def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
                       "holddowntimer": 150, }
                    }}}}
 
-    result = modify_bgp_timers('ipv4', input_dict, CWD, tgen, topo)
+    result = modify_bgp_timers('ipv4', input_dict, tgen, topo)
     
     Returns
     -------
@@ -968,7 +965,7 @@ def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
                 Bgp_cfg(bgp_cfg[router])
                 bgp_cfg[router].print_bgp_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -978,7 +975,7 @@ def modify_bgp_timers(ADDR_TYPE, input_dict, CWD, tgen, topo):
     logger.info("Exiting lib API: modify_bgp_timers()")
     return True
 
-def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
+def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, 
                                              topo):
     """
     API to advertise defined networks to BGP. Configuration would be updated
@@ -987,7 +984,6 @@ def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
     Parameters
     ----------
     * `ADDR_TYPE` : ip type, ipv4/6
-    * `CWD`  : caller's current working directory
     * `tgen`  : Topogen object
     * `topo`  : json file data
     * `input_dict` :  defines how many networks needs to be advertised for any given 
@@ -1006,7 +1002,7 @@ def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
          			{'start_ip': '200.50.1.0/32'}]
         }}
     
-    result = advertise_networks_using_network_command('ipv4', input_dict, tgen, CWD, topo)
+    result = advertise_networks_using_network_command('ipv4', input_dict, tgen, topo)
 
     Returns
     -------
@@ -1046,7 +1042,7 @@ def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
             Bgp_cfg(bgp_cfg[router])
             bgp_cfg[router].print_bgp_config_to_file(topo)
             # Load config to router
-            load_config_to_router(tgen, CWD, router)
+            load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1056,7 +1052,7 @@ def advertise_networks_using_network_command(ADDR_TYPE, input_dict, tgen, CWD,
     logger.info("Exiting lib API: advertise_networks_using_network_command()")
     return True
 
-def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def modify_AS_number(ADDR_TYPE, input_dict, tgen, topo):
     """
     API reads local_as and remote_as from user defined input_dict and 
     modify router's ASNs accordingly. Router's config is modified and
@@ -1066,7 +1062,6 @@ def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
     ----------
     * `ADDR_TYPE` : ip type, ipv4/6
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     * `input_dict` :  defines for which router ASNs needs to be modified
 
@@ -1080,7 +1075,7 @@ def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
                     "r2": {
                         "remote_as": 131079,
                     }}}}
-    result = modify_AS_number('ipv4', input_dict, tgen, CWD, topo)   
+    result = modify_AS_number('ipv4', input_dict, tgen, topo)   
  
     Returns
     -------
@@ -1133,7 +1128,7 @@ def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
             Bgp_cfg(bgp_cfg[router])
             bgp_cfg[router].print_bgp_config_to_file(topo)
             # Load config to router
-            load_config_to_router(tgen, CWD, router)
+            load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1143,7 +1138,7 @@ def modify_AS_number(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: modify_AS_number()")
     return True
 
-def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, topo):
     """
     API will read config from input dictionary and create redistribute
     static, connected or with route maps config. Recent/changef config 
@@ -1153,7 +1148,6 @@ def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
     ---------
     * `ADDR_TYPE` : ip type, ipv4/6
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     * `input_dict` : defines for which router, static, connnected and 
                      route maps needs to be redistributed
@@ -1172,7 +1166,7 @@ def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
             "redistribute": [{"static": {"route-map": "RMAP_NAME"}},\
                                  {"connected": True}]
     }}
-    result = redistribute_static_routes('ipv4', input_dict, tgen, CWD, topo) 
+    result = redistribute_static_routes('ipv4', input_dict, tgen, topo) 
 
     Returns
     -------
@@ -1210,7 +1204,7 @@ def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 redist_cfg(bgp_cfg[router], ADDR_TYPE)
                 bgp_cfg[router].print_bgp_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1220,7 +1214,7 @@ def redistribute_static_routes(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: redistribute_static_routes_to_bgp()")
     return True
 
-def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, topo):
     """
     API to create BGP address-family configuration for any given router.
     User will define config from input_dict which will be applied to 
@@ -1230,7 +1224,6 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
     ----------
     * `ADDR_TYPE` : ip type ipv4/ipv6
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     * `input_dict` :  defines for which bgp neighbor config needs to 
   		      applied
@@ -1262,7 +1255,7 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 'r2': {
                     "next_hop_self": True 
                     }}}}
-    result = configure_bgp_neighbors('ipv4', input_dict, tgen, CWD, topo)   
+    result = configure_bgp_neighbors('ipv4', input_dict, tgen, topo)   
  
     Returns
     -------
@@ -1382,7 +1375,7 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
             redist_cfg(bgp_cfg[router], ADDR_TYPE)
             bgp_cfg[router].print_bgp_config_to_file(topo)
             # Load config to router
-            load_config_to_router(tgen, CWD, router)
+            load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
@@ -1392,7 +1385,7 @@ def configure_bgp_neighbors(ADDR_TYPE, input_dict, tgen, CWD, topo):
     logger.info("Exiting lib API: configure_bgp_neighbors()")
     return True
 
-def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
+def create_community_lists(ADDR_TYPE, input_dict, tgen, topo):
     """
     API reads data from user defined input_dict dictionary and create bgp
     community list config. Recent/changed config will be loaded to router.
@@ -1401,7 +1394,6 @@ def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
     ----------
     * `ADDR_TYPE`  : ip type, ipv4/ipv6
     * `tgen`  : Topogen object
-    * `CWD`  : caller's current working directory
     * `topo`  : json file data
     * `input_dict` :  defines for which router community list needs to be 
 		      created
@@ -1428,7 +1420,7 @@ def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                      'LC_1_EXP': [{"action": "PERMIT", "attribute":\
                                     "1:1:200 1:2:* 3:2:1"}]
                 }}}}
-    result = create_community_lists('ipv4', input_dict, tgen, CWD, topo)
+    result = create_community_lists('ipv4', input_dict, tgen, topo)
     
     Returns
     -------
@@ -1467,7 +1459,7 @@ def create_community_lists(ADDR_TYPE, input_dict, tgen, CWD, topo):
                 community_list_cfg(bgp_cfg[router])
                 bgp_cfg[router].print_bgp_config_to_file(topo)
                 # Load config to router
-                load_config_to_router(tgen, CWD, router)
+                load_config_to_router(tgen, router)
 
     except Exception as e:
         errormsg = traceback.format_exc()
