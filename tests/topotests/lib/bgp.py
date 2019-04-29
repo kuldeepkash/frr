@@ -1908,7 +1908,7 @@ def clear_bgp_and_verify(tgen, topo, addr_type, dut):
     return True
 
 def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
-    """  
+    """
     To verify BGP timer config, execute "show ip bgp neighbor json" command
     and verify bgp timers with input_dict data.
     To veirfy bgp timers functonality, shutting down peer interface
@@ -1931,7 +1931,7 @@ def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
                       "keepalivetimer": 5,
                       "holddowntimer": 15,
                    }}}}}
-    result = verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict)
+    result = verify_bgp_timers_and_functionality(tgen, topo, 'ipv4', input_dict)
 
     Returns
     -------
@@ -1950,7 +1950,7 @@ def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
                         format(router))
 
             show_ip_bgp_neighbor_json = \
-                rnode.vtysh_cmd("show ip bgp neighbor json", isjson=True)
+            rnode.vtysh_cmd("show ip bgp neighbor json", isjson=True)
             for bgp_neighbor in input_dict[router]["bgp"]["bgp_neighbors"].keys():
                 keepalivetimer = input_dict[router]["bgp"]["bgp_neighbors"]\
                     [bgp_neighbor]["keepalivetimer"]
@@ -1964,8 +1964,12 @@ def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
 
                 # Loopback interface
                 if "source_link" in peer and peer['source_link'] == 'lo':
-                    neighbor_ip = topo['routers'][bgp_neighbor]['lo'][addr_type].\
-                        split('/')[0]
+                    for destRouterLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+			if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == destRouterLink:
+                                neighbor_ip = topo['routers'][bgp_neighbor]['links']\
+					[destRouterLink][addr_type].split('/')[0]
                 else:
                     # Physical Interface
                     for destRouterLink in topo['routers'][bgp_neighbor]['links'].\
@@ -1977,7 +1981,7 @@ def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
 
                 # Verify HoldDownTimer for neighbor
                 bgpHoldTimeMsecs = show_ip_bgp_neighbor_json[neighbor_ip]\
-                    ["bgpTimerHoldTimeMsecs"]
+                                   ["bgpTimerHoldTimeMsecs"]
                 if bgpHoldTimeMsecs != holddowntimer * 1000:
                     errormsg = "Verifying holddowntimer for bgp neighbor {} under dut {},\
                     found: {} but expected: {}".format(neighbor_ip, router,
@@ -1995,47 +1999,169 @@ def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
                                                        keepalivetimer * 1000)
                     return errormsg
 
-                # Keep alive message count before shutting down neighbor interface
-                show_ip_bgp_neighbor_json = rnode.vtysh_cmd("show ip bgp neighbor json",
-                                                            isjson=True)
-                keepalive_msg_count_before = show_ip_bgp_neighbor_json[neighbor_ip]\
-                    ["messageStats"]["keepalivesSent"]
-		
-                # Shutdown interface
-		logger.info("Shutting down interface r2-r1-eth0 on router: {}..".format(bgp_neighbor))
-                topotest.interface_set_status(router_list[bgp_neighbor], "r2-r1-eth0",
-                                              ifaceaction=False)
+                # Shutdown loopback interface
+                if "source_link" in peer and peer['source_link'] == 'lo':
+                    for destRouterLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+                        if 'type' in data and data['type'] == 'loopback':
+                            if dest_link == destRouterLink:
+                                neighbor_intf = topo['routers'][bgp_neighbor]['links']\
+                                        [destRouterLink]['interface']
+                # Shutdown physical interface
+                else:
+                    for destRouterLink in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+                        if dest_link == destRouterLink[0]:
+                            neighbor_intf = \
+                            topo['routers'][bgp_neighbor]['links'][destRouterLink[0]]\
+                                ['interface']
 
-                # Verifying functionality
+                ####################
+                # Shutting down peer interface after keepalive time and after some 
+		# time bringing up peer interface.
+		# verifying BGP neighborship in (hold down - keep alive) time, it 
+                # should not go down
+                ####################
+		
+		# Wait till keep alive time
+		logger.info("="*20)
+		logger.info("Scenario 1:")
+		logger.info("Shutdown and bring up peer interface: {} in keep alive "
+		       "time : {} sec and verify BGP neighborship is intact in "
+		       " {} sec ".format(neighbor_intf, keepalivetimer, \
+		       holddowntimer - keepalivetimer))
+		logger.info("="*20)
+		logger.info("Waiting for {} sec..".format(keepalivetimer))
+		sleep (keepalivetimer)
+
+		# Shutting down peer ineterface
+                logger.info("Shutting down interface {} on router {}..".\
+                                format(neighbor_intf, bgp_neighbor))
+                topotest.interface_set_status(router_list[bgp_neighbor], neighbor_intf,
+                                              ifaceaction = False)
+
+		# Bringing up peer interface
+		sleep (5)
+		logger.info("Bringing up interface {} on router {}..".\
+                                format(neighbor_intf, bgp_neighbor))
+                topotest.interface_set_status(router_list[bgp_neighbor], neighbor_intf,
+                                              ifaceaction = True)
+
+                # Verifying BGP neighborship is intact in (holddown - keepalive) time
+                for timer in range(keepalivetimer, holddowntimer,
+                                   int(holddowntimer/3)):
+                    logger.info("Waiting for {} sec..".format(keepalivetimer))
+                    sleep (keepalivetimer)
+                    show_bgp_json = rnode.vtysh_cmd("show bgp summary json", isjson=True)
+
+                    # Peer details
+                    peer_json = \
+                    topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]["peer"]
+                    dest_link = peer_json["dest_link"]
+
+                    # Loopback interface
+                    if "source_link" in peer_json and peer_json["source_link"] == 'lo':
+                        for neighborLink, data in topo['routers'][bgp_neighbor]['links'].\
+                            iteritems():
+                            if 'type' in data and data['type'] == 'loopback':
+                                if dest_link == neighborLink:
+                                    neighbor_ip = topo['routers'][bgp_neighbor]['links'][
+                                        neighborLink][addr_type].split("/")[0]
+                                    if addr_type  == 'ipv4':
+                                        nh_state = show_bgp_json["ipv4Unicast"]["peers"][
+                                                neighbor_ip]["state"]
+                                    else:
+                                        nh_state = show_bgp_json["ipv6Unicast"]["peers"][
+                                                neighbor_ip]["state"]
+
+                                    if timer == holddowntimer - keepalivetimer:
+                                        if nh_state != "Established":
+                                             errormsg = ("BGP neighborship has not gone down "
+                                             "in {} sec for neighbor {} \n show_bgp_json: \n {} ".\
+                                             format(timer, bgp_neighbor, show_bgp_json))
+                                             return errormsg
+                                        else:
+                                            logger.info("BGP neighborship is intact in {} sec for"
+                                                 " neighbor {} \n show_bgp_json : \n {}".
+                                                 format(timer, bgp_neighbor, show_bgp_json))
+                    # Physical interface
+                    else:
+                        for neighborLink in topo['routers'][bgp_neighbor]['links'].iteritems():
+                            if dest_link == neighborLink[0]:
+                                neighbor_ip = topo['routers'][bgp_neighbor]['links'][neighborLink[0]]\
+                                    [addr_type].split("/")[0]
+                                if addr_type  == 'ipv4':
+                                    nh_state = show_bgp_json["ipv4Unicast"]["peers"][neighbor_ip]\
+                                        ["state"]
+                                else:
+                                    nh_state = show_bgp_json["ipv6Unicast"]["peers"][neighbor_ip]\
+                                        ["state"]
+
+                                if timer == holddowntimer - keepalivetimer:
+                                    if nh_state != "Established":
+                                        errormsg = ("BGP neighborship has not gone down in {} sec for "
+                                                    "neighbor {} \n show_bgp_json: \n {}".\
+                                                    format(timer, bgp_neighbor, show_bgp_json))
+                                        return errormsg
+                                    else:
+                                        logger.info("BGP neighborship is intact in {} sec for "
+                                                    "neighbor {} \n show_bgp_json : \n {}".
+                                                    format(timer, bgp_neighbor, show_bgp_json))
+
+
+                ####################
+                # Shutting down peer interface and verifying that BGP neighborship is
+                # is going down in holddown time
+                ####################
+		logger.info("="*20)
+		logger.info("Scenario 2:")
+		logger.info("Shutdown peer interface: {} and verify BGP neighborship has"
+		       " gone down in hold down time {} sec".\
+		       format(neighbor_intf, holddowntimer))
+		logger.info("="*20)
+		
+		logger.info("Shutting down interface {} on router {}..".\
+            			format(neighbor_intf, bgp_neighbor))
+                topotest.interface_set_status(router_list[bgp_neighbor], neighbor_intf,
+                                              ifaceaction = False)
+		
+                # Verifying BGP neighborship is going down in hold down time
                 for timer in range(keepalivetimer, holddowntimer + keepalivetimer,
                                    int(holddowntimer/3)):
                     logger.info("Waiting for {} sec..".format(keepalivetimer))
                     sleep (keepalivetimer)
                     show_bgp_json = rnode.vtysh_cmd("show bgp summary json", isjson=True)
-                    dest_link = topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]\
-                        ["peer"]["dest_link"]
-                    # Loopback interface
-                    if "source_link" in topo['routers'][router]['bgp']["bgp_neighbors"]\
-                            [bgp_neighbor]["peer"] and \
-                        topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]\
-                                ["peer"]["source_link"] == 'lo':
-                        neighbor_ip = topo['routers'][bgp_neighbor]['lo'][addr_type].\
-                            split("/")[0]
-                        if addr_type  == 'ipv4':
-                            nh_state = show_bgp_json["ipv4Unicast"]["peers"][neighbor_ip]\
-                                ["state"]
-                        else:
-                            nh_state = show_bgp_json["ipv6Unicast"]["peers"][neighbor_ip]\
-                                ["state"]
+		    
+		    # Peer details
+		    peer_json = \
+		    topo['routers'][router]['bgp']["bgp_neighbors"][bgp_neighbor]["peer"]
+                    dest_link = peer_json["dest_link"]
 
-                        if timer == holddowntimer:
-                            if nh_state == "Established":
-                                errormsg = ("BGP neighborship has not gone down in {} sec for"
-                                            " neighbor {}".format(timer, bgp_neighbor))
-                                return errormsg
-                            else:
-                                logger.info("BGP neighborship has gone down in {} sec for "
-                                            "neighbor {}".format(timer, bgp_neighbor))
+                    # Loopback interface
+                    if "source_link" in peer_json and peer_json["source_link"] == 'lo':
+                        for neighborLink, data in topo['routers'][bgp_neighbor]['links'].\
+			    iteritems():
+			    if 'type' in data and data['type'] == 'loopback':
+                                if dest_link == neighborLink:
+                                    neighbor_ip = topo['routers'][bgp_neighbor]['links'][
+	    				neighborLink][addr_type].split("/")[0]
+                                    if addr_type  == 'ipv4':
+                                        nh_state = show_bgp_json["ipv4Unicast"]["peers"][
+		  				neighbor_ip]["state"]
+                            	    else:
+                            	        nh_state = show_bgp_json["ipv6Unicast"]["peers"][
+					        neighbor_ip]["state"]
+
+	                            if timer == holddowntimer:
+                                        if nh_state == "Established":
+                                             errormsg = ("BGP neighborship has not gone down "
+					     "in {} sec for neighbor {} \n show_bgp_json: \n {} ".\
+					     format(timer, bgp_neighbor, show_bgp_json))
+                                             return errormsg
+                            	        else:
+                                	    logger.info("BGP neighborship has gone down in {} sec for"
+                                                 " neighbor {} \n show_bgp_json : \n {}".
+						 format(timer, bgp_neighbor, show_bgp_json))
                     else:
                         # Physical interface
                         for neighborLink in topo['routers'][bgp_neighbor]['links'].iteritems():
@@ -2052,28 +2178,13 @@ def verify_bgp_timers_and_functionality(tgen, topo, addr_type, input_dict):
                                 if timer == holddowntimer:
                                     if nh_state == "Established":
                                         errormsg = ("BGP neighborship has not gone down in {} sec for "
-                                                    "neighbor {}".format(timer, bgp_neighbor))
+                                                    "neighbor {} \n show_bgp_json: \n {}".\
+						    format(timer, bgp_neighbor, show_bgp_json))
                                         return errormsg
                                     else:
                                         logger.info("BGP neighborship has gone down in {} sec for "
-                                                    "neighbor {}".format(timer, bgp_neighbor))
-
-                # Keep alive message count before shutting down neighbor interface
-                show_ip_bgp_neighbor_json = rnode.vtysh_cmd("show ip bgp neighbor json", isjson=True)
-                keepalive_msg_count_after = show_ip_bgp_neighbor_json[neighbor_ip]["messageStats"]\
-                    ["keepalivesSent"]
-
-                # Verifying  keepalive msg count
-                if keepalive_msg_count_after - keepalive_msg_count_before == 3:
-                    logger.info("Total 3 keepAlive messages are sent to neighbor, untill bgp "
-                                "neighborship is down")
-                else:
-                    errormsg = ("Inconsistancy in keepAlive messages, which  are sent to "
-                                "neighbor, untill bgp neighborship is down, \n"
-				"keep_alive_msg_count_after: {} \n"
-				"keep_alive_msg_count_before: {}".
-				format(keepalive_msg_count_after, keepalive_msg_count_before))
-                    return errormsg
+                                                    "neighbor {} \n show_bgp_json : \n {}".
+						    format(timer, bgp_neighbor, show_bgp_json))
 
     logger.info("Exiting lib API: verify_bgp_timers_and_functionality()")
     return True
