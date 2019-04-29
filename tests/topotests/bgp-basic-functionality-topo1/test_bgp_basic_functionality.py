@@ -158,7 +158,7 @@ def test_bgp_convergence():
     logger.info("Testcase started: {} \n".format(tc_name))
 
     # Api call verify whether BGP is converged
-    bgp_convergence = verify_bgp_convergence('ipv4', tgen, topo)
+    bgp_convergence = verify_bgp_convergence(tgen, topo, 'ipv4')
     if bgp_convergence != True: assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(bgp_convergence)  
     
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -192,11 +192,11 @@ def test_modify_and_delete_router_id():
 	    'router_id': '33.33.33.33'
 	},
     }
-    result = modify_delete_router_id('modify', input_dict, tgen, topo)
+    result = modify_delete_router_id(tgen, topo, 'modify', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying router id once modified
-    result = verify_router_id(input_dict, tgen, topo)
+    result = verify_router_id(tgen, topo, input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Errnor: {}".format(result)
 
     ## API call to delete router id
@@ -204,12 +204,12 @@ def test_modify_and_delete_router_id():
     input_dict = {
 	"router_ids": ["r1", "r2", "r3"],
     }
-    result = modify_delete_router_id('delete', input_dict, tgen, topo)
+    result = modify_delete_router_id(tgen, topo, 'delete', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying router id once deleted
     # Once router-id is deleted, highest interface ip should become router-id
-    result = verify_router_id(input_dict, tgen, topo)
+    result = verify_router_id(tgen, topo, input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -279,10 +279,10 @@ def test_BGP_config_with_4byte_AS_number():
             }
         }
     }
-    result = modify_AS_number('ipv4', input_dict, tgen, topo)
+    result = modify_AS_number( tgen, topo, 'ipv4', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
-    result = verify_AS_numbers('ipv4', tgen, input_dict, topo)
+    result = verify_AS_numbers(tgen, topo, 'ipv4', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)    
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -316,20 +316,34 @@ def test_bgp_timers_functionality():
                   "r2":{ 
                       "keepalivetimer": 5,
                       "holddowntimer": 15,
-                   }
-               }
-	    }
-        }
-    }
-    result = modify_bgp_timers('ipv4', input_dict, tgen, topo)
+                   }}}}}
+    result = modify_bgp_timers(tgen, topo, 'ipv4', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Api call to clear bgp, so timer modification would take place
-    clear_bgp('ipv4', tgen, 'r1')
+    clear_bgp(tgen, 'r1', 'ipv4')
 
     # Verifying bgp timers functionality
-    result = verify_bgp_timers_and_functionality('ipv4', tgen, input_dict, topo)
+    result = verify_bgp_timers_and_functionality(tgen, topo, 'ipv4', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
+
+    # Creating configuration from JSON
+    build_config_from_json(tgen, topo)
+
+    """
+    # Verifying  BGP timers functionality with default timers
+    input_dict = {
+        "r1": {
+           "bgp": {
+               "bgp_neighbors":{
+                  "r2":{
+                      "keepalivetimer": 60,
+                      "holddowntimer": 180,
+                   }}}}}
+    # Verifying bgp timers functionalit
+    result = verify_bgp_timers_and_functionality(tgen, topo, 'ipv4', input_dict)
+    if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
+    """
 
     logger.info("Testcase " + tc_name + " :Passed \n")
 
@@ -356,9 +370,8 @@ def test_static_routes():
     input_dict = {
         "r1": {
             "static_routes": [{"network": "10.0.20.1/32", "no_of_ip": 9, "admin_distance": 100, "next_hop": "10.0.0.2", "tag": 4001}]
-        }
-    }
-    result = create_static_routes('ipv4', input_dict, tgen, topo)
+        }}
+    result = create_static_routes(tgen, topo, 'ipv4', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Api call to redistribute static routes
@@ -366,16 +379,15 @@ def test_static_routes():
         'r1': {
                "redistribute": [{"static": True}, \
 				{"connected": True}]
-	}
-    }
-    result = redistribute_static_routes('ipv4', input_dict_1, tgen, topo)
+	}}
+    result = redistribute_static_routes(tgen, topo, 'ipv4', input_dict_1)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying RIB routes
     dut = 'r3'
     protocol = 'bgp'
     next_hop = '10.0.0.2'
-    result = verify_rib('ipv4', dut, tgen, input_dict, next_hop = next_hop, protocol = protocol)
+    result = verify_rib(tgen, 'ipv4', dut, input_dict, next_hop = next_hop, protocol = protocol)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -402,14 +414,12 @@ def test_admin_distance_for_existing_static_routes():
             '10.0.20.1/32':{
                 'admin_distance': 10,
                 'next_hop': '10.0.0.2'
-            }
-        }
-    }
-    result = modify_admin_distance_for_static_routes(input_dict, tgen, topo)
+            }}}
+    result = modify_admin_distance_for_static_routes(tgen, topo, input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying admin distance  once modified
-    result = verify_admin_distance_for_static_routes(input_dict, tgen)
+    result = verify_admin_distance_for_static_routes(tgen, input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -435,15 +445,14 @@ def test_advertise_network_using_network_command():
         'r1': {
             'advertise_networks': [{'start_ip': '20.0.0.0/32', 'no_of_network': 10},
 				   {'start_ip': '30.0.0.0/32'}]
-    	}
-    }
-    result = advertise_networks_using_network_command('ipv4', input_dict, tgen, topo)
+    	}}
+    result = advertise_networks_using_network_command(tgen, topo, 'ipv4', input_dict)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     # Verifying RIB routes
     dut = 'r2'
     protocol = "bgp"
-    result = verify_rib('ipv4', dut, tgen, input_dict, protocol = protocol)
+    result = verify_rib(tgen, 'ipv4', dut, input_dict, protocol = protocol)
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -465,7 +474,7 @@ def test_clear_bgp_and_verify():
     logger.info("Testcase started: {} \n".format(tc_name))
 
     # Api call to clear bgp, so timer modification would take placee
-    result = clear_bgp_and_verify('ipv4', tgen, 'r1', topo)
+    result = clear_bgp_and_verify(tgen, topo, 'ipv4', 'r1')
     if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
@@ -503,7 +512,7 @@ def test_bgp_with_loopback_interface():
     build_config_from_json(tgen, topo)
 
     # Api call verify whether BGP is converged
-    bgp_convergence = verify_bgp_convergence('ipv4', tgen, topo)
+    bgp_convergence = verify_bgp_convergence(tgen, topo, 'ipv4')
     if bgp_convergence != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(bgp_convergence)
 
     logger.info("Testcase " + tc_name + " :Passed \n")
