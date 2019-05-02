@@ -1217,7 +1217,7 @@ def create_interfaces_cfg(topo, curRouter):
 
     return interfaces
 
-def add_static_route_for_loopback_interfaces(topo, ADDR_TYPE, curRouter,
+def add_static_route_for_loopback_interfaces(topo, addr_type, curRouter,
 					     frrcfg):
     """
     Add static routes for loopback interfaces reachability, It will add static
@@ -1226,7 +1226,7 @@ def add_static_route_for_loopback_interfaces(topo, ADDR_TYPE, curRouter,
 
     Parameters
     ----------
-    * `ADDR_TYPE` : ip type, ipv4/ipv6
+    * `addr_type` : ip type, ipv4/ipv6
     * `curRouter` : Device Under Test
     * `topo` : json file data
     * `frrcfg` : frr config file
@@ -1239,12 +1239,12 @@ def add_static_route_for_loopback_interfaces(topo, ADDR_TYPE, curRouter,
             # Loopback interfaces
             if 'type' in data2 and data2['type'] == 'loopback':
                 lo_ip_addr = topo['routers'][bgp_neighbor][
-                        'links'][destRouterLink][ADDR_TYPE]
+                        'links'][destRouterLink][addr_type]
             if curRouter in destRouterLink:
                 next_hop = topo['routers'][bgp_neighbor]['links'][
-                           destRouterLink][ADDR_TYPE].split("/")[0]
+                           destRouterLink][addr_type].split("/")[0]
 
-                if ADDR_TYPE == "ipv4":
+                if addr_type == "ipv4":
                     frrcfg.write("ip route " + lo_ip_addr + " " + next_hop + "\n")
                 else:
                     frrcfg.write("ipv6 route " + lo_ip_addr + " " + next_hop + "\n")
