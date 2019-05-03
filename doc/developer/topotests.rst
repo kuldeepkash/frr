@@ -25,6 +25,14 @@ Installing Mininet Infrastructure
    pip install pytest
    pip install exabgp==3.4.17 (Newer 4.0 version of exabgp is not yet
    supported)
+   pip install ipaddress
+   pip install json
+   pip install time
+   pip install errno
+   pip install traceback
+   pip install StringIO
+   pip install ConfigParser
+
    useradd -d /var/run/exabgp/ -s /bin/false exabgp
 
 Enable Coredumps

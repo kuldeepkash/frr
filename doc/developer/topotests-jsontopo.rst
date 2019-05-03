@@ -23,18 +23,6 @@ On top of current topotests framework following enhancements are done:
    newly created configuration for any particular router and creates a delta 
    file(diff file) and loads it to  router.
 
-Required packages for running tests
-###################################
-
-.. code-block::
-
-    pip install ipaddress
-    pip install json
-    pip install time
-    pip install errno
-    pip install traceback
-    pip install StringIO
-    pip install ConfigParser
 
 Logging of test case executions
 ###############################
@@ -118,8 +106,9 @@ file. Here is an example of JSON file.
    "routers":
    {
        "r1": {
-       "lo": {"ipv4": "auto", "ipv6": "auto"},
        "links": {
+           "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback",
+		  "add_static_route": "yes"},
            "r2": {"ipv4": "auto", "ipv6": "auto"}
        },
        "bgp": {
@@ -137,8 +126,9 @@ file. Here is an example of JSON file.
                    "addr_type": "ipv4"
                }}}}},
        "r2": {
-       "lo": { "ipv4": "auto", "ipv6": "auto"},
        "links": {
+           "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback",
+		  "add_static_route": "yes"},
            "r1": {"ipv4": "auto", "ipv6": "auto"}
        },
        "bgp": {
@@ -165,9 +155,10 @@ file. Here is an example of JSON file.
    "routers":
    {
        "r1": {
-           "lo": {"ipv4": "auto", "ipv6": "auto"},
            "links": {
-                   "r2": {"ipv4": "auto", "ipv6": "auto"}
+                  "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback",
+		        "add_static_route": "yes"},
+                  "r2": {"ipv4": "auto", "ipv6": "auto"}
            },
            "bgp": {
                    "local_as": "100",
@@ -180,8 +171,9 @@ file. Here is an example of JSON file.
                                "source_link": "lo"
                            }}}}},
        "r2": {
-           "lo": { "ipv4": "auto", "ipv6": "auto"},
            "links": {
+                  "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback",
+		        "add_static_route": "yes"},
                    "r1": {"ipv4": "auto", "ipv6": "auto"}
            },
            "bgp": {
@@ -208,8 +200,9 @@ file. Here is an example of JSON file.
    "routers":
    {
        "r1": {
-       "lo": {"ipv4": "auto", "ipv6": "auto"},
        "links": {
+           "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback",
+		        "add_static_route": "yes"},
            "r2-link1": {"ipv4": "auto", "ipv6": "auto"},
            "r2-link2": {"ipv4": "auto", "ipv6": "auto"}
        },
@@ -242,8 +235,9 @@ file. Here is an example of JSON file.
        },
 
        "r2": {
-       "lo": { "ipv4": "auto", "ipv6": "auto"},
        "links": {
+           "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback",
+		        "add_static_route": "yes"},
            "r1-link1": {"ipv4": "auto", "ipv6": "auto"},
            "r1-link2": {"ipv4": "auto", "ipv6": "auto"}
        },
@@ -270,11 +264,16 @@ Mandatory keywords/options in JSON:
 * "ipv6mask" : mask for ipv6 address, ex - 64
 * "link_ip_start" : physical interface base ipv4 and ipv6 address
 * "lo_prefix" : loopback interface base ipv4 and ipv6 address
-* "routers"   : user can add number of routers as per topology, router's name can be any logical name, ex- r1 or a0.
+* "routers"   : user can add number of routers as per topology, router's name
+		can be any logical name, ex- r1 or a0.
 * "r1" : name of the router 
 * "lo" : loopback interface dict, ipv4 and/or ipv6 addresses generated automatically 
-* "links" : physical interfaces dict, ipv4 and/or ipv6 addresses generated automatically
-* "r2-link1" : it will be used when routers have multiple links. 'r2' is router name, 'link' is any logical name, '1' is to identify link number. router name and link must be seperated by hyphen ("-"), ex- a0-peer1
+* "type" : type of interface, to identify loopback interface
+* "links" : physical interfaces dict, ipv4 and/or ipv6 addresses generated 
+	    automatically
+* "r2-link1" : it will be used when routers have multiple links. 'r2' is router
+	       name, 'link' is any logical name, '1' is to identify link number,
+	       router name and link must be seperated by hyphen ("-"), ex- a0-peer1
 * "bgp" : bgp configuration
 * "local_as" : Local AS number
 * "bgp_neighbors" : BGP neighbors
@@ -282,13 +281,15 @@ Mandatory keywords/options in JSON:
 * "peer" : Peer details
 * "dest_link" : Destination link to which router will connect
 * "addr_type" : address type ipv4/ipv6, to create v4/v6 bgp configuration 
+* "add_static_route" : add static route for specific loopback to make loopback 
+		       interface reachablity up
 
 Optional keywords/options in JSON:
 
 
 * "router-id" : bgp router-id
-* "source_link" : if user wants to establish bgp neighborship with loopback interface, add "source_link": "lo"
-
+* "source_link" : if user wants to establish bgp neighborship with loopback 
+		  interface, add "source_link": "lo"
 * "enabled" : enable/disable BGP, by default enabled
 * "ecmp" : configure max-path value for ECMP. 
 * "keepalivetimer" : Keep alive timer for BGP neighbor
@@ -452,4 +453,3 @@ TODO:
 
 
 #. Enhance generate_ips() API  to generate ips for any mask given.
-#. Add support for multiple loopback addresses.
