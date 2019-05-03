@@ -65,14 +65,18 @@ def build_topo_from_json(tgen, topo):
         if 'links' in topo['routers'][curRouter]:
             for destRouterLink, data in sorted(topo['routers'][curRouter]['links'].\
 		iteritems()):
+	 	currRouter_lo_json = \
+		topo['routers'][curRouter]['links'][destRouterLink]
 	        # Loopback interfaces
         	if 'type' in data and data['type'] == 'loopback':
-                    if topo['routers'][curRouter]['links'][destRouterLink]['ipv4'] == 'auto':
-                        topo['routers'][curRouter]['links'][destRouterLink]['ipv4'] = '{}{}.{}/{}'.\
+                    if 'ipv4' in currRouter_lo_json and \
+			currRouter_lo_json['ipv4'] == 'auto':
+                        currRouter_lo_json['ipv4'] = '{}{}.{}/{}'.\
                         format(topo['lo_prefix']['ipv4'], number_to_row(curRouter),\
                         number_to_column(curRouter), topo['lo_prefix']['v4mask'])
-            	    if topo['routers'][curRouter]['links'][destRouterLink]['ipv6'] == 'auto':
-                	topo['routers'][curRouter]['links'][destRouterLink]['ipv6'] = '{}{}:{}/{}'.\
+                    if 'ipv6' in currRouter_lo_json and \
+			currRouter_lo_json['ipv6'] == 'auto':
+                	currRouter_lo_json['ipv6'] = '{}{}:{}/{}'.\
                 	format(topo['lo_prefix']['ipv6'], number_to_row(curRouter),\
                 	number_to_column(curRouter), topo['lo_prefix']['v6mask'])
 
@@ -91,13 +95,19 @@ def build_topo_from_json(tgen, topo):
 	            curRouterLink = curRouter
 
 		if destRouter in listRouters:
+                    currRouter_link_json = \
+                    topo['routers'][curRouter]['links'][destRouterLink]
+                    destRouter_link_json = \
+                    topo['routers'][destRouter]['links'][curRouterLink]
+
 		    # Assigning name to interfaces
-                    topo['routers'][curRouter]['links'][destRouterLink]['interface'] = \
-			    '{}-{}-eth{}'.format(curRouter, destRouter, topo['routers']\
-			    [curRouter]['nextIfname'])
-                    topo['routers'][destRouter]['links'][curRouterLink]['interface'] = \
-			    '{}-{}-eth{}'.format(destRouter, curRouter, topo['routers']\
-			    [destRouter]['nextIfname'])
+                    currRouter_link_json['interface'] = \
+  		    '{}-{}-eth{}'.format(curRouter, destRouter, topo['routers']\
+		    [curRouter]['nextIfname'])
+                    destRouter_link_json['interface'] = \
+		    '{}-{}-eth{}'.format(destRouter, curRouter, topo['routers']\
+		    [destRouter]['nextIfname'])
+
                     topo['routers'][curRouter]['nextIfname'] += 1
                     topo['routers'][destRouter]['nextIfname'] += 1
 		
@@ -108,22 +118,24 @@ def build_topo_from_json(tgen, topo):
 			      [curRouterLink]['interface'])
 		
 		    # IPv4
-                    if 'ipv4' in topo['routers'][curRouter]['links'][destRouterLink]:
-                        if topo['routers'][curRouter]['links'][destRouterLink]['ipv4'] == \
-			    'auto':
-                            topo['routers'][curRouter]['links'][destRouterLink]['ipv4'] = \
-				'{}/{}'.format(ipv4Next, topo['link_ip_start']['v4mask'])
-                            topo['routers'][destRouter]['links'][curRouterLink]['ipv4'] = \
-				'{}/{}'.format(ipv4Next + 1, topo['link_ip_start']['v4mask'])
+                    if 'ipv4' in currRouter_link_json:
+                        if currRouter_link_json['ipv4'] == 'auto':
+                            currRouter_link_json['ipv4'] = \
+				'{}/{}'.format(ipv4Next, topo['link_ip_start'][\
+				'v4mask'])
+                            destRouter_link_json['ipv4'] = \
+				'{}/{}'.format(ipv4Next + 1, topo['link_ip_start'][\
+				'v4mask'])
                             ipv4Next += ipv4Step
 		    # IPv6
-                    if 'ipv6' in topo['routers'][curRouter]['links'][destRouterLink]:
-                        if topo['routers'][curRouter]['links'][destRouterLink]['ipv6'] == \
-			    'auto':
-                            topo['routers'][curRouter]['links'][destRouterLink]['ipv6'] = \
-				'{}/{}'.format(ipv6Next, topo['link_ip_start']['v6mask'])
-                            topo['routers'][destRouter]['links'][curRouterLink]['ipv6'] = \
-				'{}/{}'.format(ipv6Next + 1, topo['link_ip_start']['v6mask'])
+                    if 'ipv6' in currRouter_link_json:
+                        if currRouter_link_json['ipv6'] == 'auto':
+                            currRouter_link_json['ipv6'] = \
+				'{}/{}'.format(ipv6Next, topo['link_ip_start'][\
+				'v6mask'])
+                            destRouter_link_json['ipv6'] = \
+				'{}/{}'.format(ipv6Next + 1, topo['link_ip_start'][\
+				'v6mask'])
                             ipv6Next = ipaddress.IPv6Address(int(ipv6Next) + ipv6Step)
 
 def build_config_from_json(tgen, topo):
@@ -147,14 +159,16 @@ def build_config_from_json(tgen, topo):
 
         logger.info('Configuring router {}..'.format(curRouter))
 
-        # Create and load routers common configurations, ex- interface_config, static_routes,
-	#  prefix_lits and route_maps...etc  to router
-        result = create_common_configuration('ipv4', tgen, topo, curRouter)
+        # Create and load routers common configurations, ex- interface_config, 
+	# static_routes, prefix_lits and route_maps...etc  to router
+        result = create_common_configuration(tgen, topo, 'ipv4', curRouter)
 	if result != True : assert False, \
-	    "topojson.create_common_configuration() :Failed \n Error: {}".format(result)
+	    "topojson.create_common_configuration() :Failed \n Error: {}".\
+		format(result)
 
         # Create and load bgp and community_list configuration to router
-        result = create_bgp_configuration('ipv4', tgen, topo, curRouter)
+        result = create_bgp_configuration(tgen, topo, 'ipv4', curRouter)
 	if result != True : assert False, \
-	   "topojson.create_bgp_configuration() :Failed \n Error: {}".format(result)
+	   "topojson.create_bgp_configuration() :Failed \n Error: {}".\
+		format(result)
 

@@ -176,7 +176,7 @@ class FRRConfig:
                     peer = neighbors[key]['peer']
                     if "source_link" in peer and peer['source_link'] == 'lo':
                         add_static_route_for_loopback_interfaces(topo,
-                            'ipv4', self.router, frrcfg)
+                               self.router, frrcfg)
 
             cmd.extend(['! Static Route Config\n',
                         self.static_routes.getvalue(),
@@ -1217,8 +1217,7 @@ def create_interfaces_cfg(topo, curRouter):
 
     return interfaces
 
-def add_static_route_for_loopback_interfaces(topo, addr_type, curRouter,
-					     frrcfg):
+def add_static_route_for_loopback_interfaces(topo, curRouter, frrcfg):
     """
     Add static routes for loopback interfaces reachability, It will add static
     routes in current router for other router's loopback interfaces os the
@@ -1226,28 +1225,52 @@ def add_static_route_for_loopback_interfaces(topo, addr_type, curRouter,
 
     Parameters
     ----------
-    * `addr_type` : ip type, ipv4/ipv6
-    * `curRouter` : Device Under Test
     * `topo` : json file data
-    * `frrcfg` : frr config file
+    * `curRouter` : Device Under Test
+    * `frrcfg` : frr config file handler
     """
 
     bgp_neighbors = topo['routers'][curRouter]['bgp']['bgp_neighbors']
     for bgp_neighbor in bgp_neighbors.keys():
+ 	add_static_route = False
         for destRouterLink, data2 in sorted(topo['routers'][
             bgp_neighbor]['links'].iteritems()):
-            # Loopback interfaces
-            if 'type' in data2 and data2['type'] == 'loopback':
-                lo_ip_addr = topo['routers'][bgp_neighbor][
-                        'links'][destRouterLink][addr_type]
-            if curRouter in destRouterLink:
-                next_hop = topo['routers'][bgp_neighbor]['links'][
-                           destRouterLink][addr_type].split("/")[0]
+	    # IPv4
+	    if 'ipv4' in data2:
+                if 'type' in data2 and data2['type'] == 'loopback':
+		    if 'add_static_route' in data2 and data2[
+                                'add_static_route'] == "yes":
+			add_static_route = True
+                        # Loopback interfaces
+                        lo_ipv4_addr = topo['routers'][bgp_neighbor][
+                           'links'][destRouterLink]['ipv4']
+                    
+		# Next hop address
+		if curRouter in destRouterLink:
+                    ipv4_next_hop = topo['routers'][bgp_neighbor]['links'][
+                    destRouterLink]['ipv4'].split("/")[0]
+	
+		    if add_static_route:	
+                        frrcfg.write("ip route " + lo_ipv4_addr + " " +
+	                         ipv4_next_hop + "\n")
+	    # IPv6
+	    if 'ipv6' in data2:
+                if 'type' in data2 and data2['type'] == 'loopback':
+		    if 'add_static_route' in data2 and data2[
+                                'add_static_route'] == "yes":
+			add_static_route = True
+                        # Loopback interfaces
+                        lo_ipv6_addr = topo['routers'][bgp_neighbor][
+                           'links'][destRouterLink]['ipv6']
 
-                if addr_type == "ipv4":
-                    frrcfg.write("ip route " + lo_ip_addr + " " + next_hop + "\n")
-                else:
-                    frrcfg.write("ipv6 route " + lo_ip_addr + " " + next_hop + "\n")
+		# Next hop address
+                if curRouter in destRouterLink:
+                    ipv6_next_hop = topo['routers'][bgp_neighbor]['links'][
+                    destRouterLink]['ipv6'].split("/")[0]
+		
+		    if add_static_route:	
+   	                frrcfg.write("ipv6 route " + lo_ipv6_addr + " " + 
+                                 ipv6_next_hop + "\n")
 
 def create_static_routes(tgen, topo, addr_type, input_dict):
     """

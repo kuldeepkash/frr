@@ -189,10 +189,11 @@ def create_bgp_cfg(router, topo):
 			    'links'][destRouterLink][addr_type].split('/')[0]
                             if addr_type == "ipv4":
                                 af_modifier = IPv4_UNICAST
+			        addr = Address(af_modifier, ip_addr, None)
                             else:
                                 af_modifier = IPv6_UNICAST
+			        addr = Address(af_modifier, None, ip_addr)
 
-                            addr = Address(af_modifier, ip_addr, None)
                             neighbor = bgp.add_neighbor(af_modifier, addr, remote_as,
                                             keepalivetimer, holddowntimer,
                                             None, update_source, 2)
@@ -208,10 +209,11 @@ def create_bgp_cfg(router, topo):
                                       split('/')[0]
                         if addr_type == "ipv4":
                             af_modifier = IPv4_UNICAST
+			    addr = Address(af_modifier, ip_addr, None)
                         else:
                             af_modifier = IPv6_UNICAST
+			    addr = Address(af_modifier, None, ip_addr)
 
-                        addr = Address(af_modifier, ip_addr, None)
                         neighbor = bgp.add_neighbor(af_modifier, addr,
                                             remote_as, keepalivetimer,
                                             holddowntimer, None,
@@ -227,7 +229,7 @@ def create_bgp_cfg(router, topo):
     logger.info("Exiting lib API: create_bgp_cfg()")
     return bgp
 
-def create_bgp_configuration(addr_type, tgen, topo, router):
+def create_bgp_configuration(tgen, topo, addr_type, router):
     """
     API to create object of class BGPConfig and also create bgp_json.conf
     file. It will create BGP and related configurations and save it to
@@ -235,9 +237,9 @@ def create_bgp_configuration(addr_type, tgen, topo, router):
 
     Parameters
     ----------
-    * `addr_type` : ip type ipv4/ipv6
     * `tgen` : Topogen object
     * `topo` : json file data
+    * `addr_type` : ip type ipv4/ipv6
     * `router` : current router
     
     Returns
