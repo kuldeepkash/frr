@@ -90,13 +90,13 @@ class RoutingPB:
     def __init__(self):
         """ 
         Initializatio function for RoutingPB
-	* `interfaces_cfg` : interface configuration
-	* `static_route` : static routes empty list
-	* `prefix_lists` : prefix lists empty list
-	* `route_maps` : route maps empty list 
-	"""
+    * `interfaces_cfg` : interface configuration
+    * `static_route` : static routes empty list
+    * `prefix_lists` : prefix lists empty list
+    * `route_maps` : route maps empty list 
+    """
 
-	self.interfaces_cfg = None
+        self.interfaces_cfg = None
         self.static_route = []
         self.prefix_lists = []
         self.route_maps = []
@@ -108,7 +108,7 @@ class FRRConfig:
     def __init__(self, router, routing_cfg_msg, frrcfg_file):
         """ Initialization function for FRR configuration
 
-	* `router`: Device Under Test
+    * `router`: Device Under Test
         """
 
         self.router = router
@@ -163,8 +163,7 @@ class FRRConfig:
             cmd = ['! FRR General Config\n',
                    self.routing_common.getvalue(),
                    '! Interfaces Config\n',
-                   self.interfaces_cfg.getvalue(),
-                   ]
+                   self.interfaces_cfg.getvalue(), ]
 
             # If bgp neighborship is being done using loopback interface -
             # - then loopback interface reachability needs to be there -
@@ -172,11 +171,11 @@ class FRRConfig:
             device = topo['routers']['{}'.format(self.router)]
             if "bgp" in device:
                 neighbors = device["bgp"]['bgp_neighbors']
-                for key, value in neighbors.iteritems():
+                for key in neighbors.keys():
                     peer = neighbors[key]['peer']
                     if "source_link" in peer and peer['source_link'] == 'lo':
                         add_static_route_for_loopback_interfaces(topo,
-                               self.router, frrcfg)
+                                                                 self.router, frrcfg)
 
             cmd.extend(['! Static Route Config\n',
                         self.static_routes.getvalue(),
@@ -186,8 +185,7 @@ class FRRConfig:
                         self.prefix_lists.getvalue(),
                         '! Route Maps Config\n',
                         self.route_maps.getvalue(),
-                        'line vty\n'
-                        ])
+                        'line vty\n'])
             frrcfg.writelines(cmd)
 
         except IOError as err:
@@ -199,19 +197,20 @@ class FRRConfig:
 
         return True
 
+
 def create_common_configuration(tgen, topo, addr_type, router):
     """
     API to create object of class FRRConfig and also create frr_json.conf
     file. It will create interface and common configurations and save it to
     frr_json.conf and load to router
-   
+
     Parameters
     ----------
     * `tgen`: tgen onject 
     * `topo` : json file data
     * `addr_type`: ip address type ipv4/6 
     * `router` : router for which bgp config should be created
-    
+
     Returns
     -------
     errormsg(str) or object of FRRConfig class which has interface
@@ -249,7 +248,7 @@ def create_common_configuration(tgen, topo, addr_type, router):
                                         " \n Error: {}".format(result))
 
             if 'prefix_lists' in topo['routers'][router]:
-                result = create_prefix_lists(tgen,topo, addr_type, input_dict)
+                result = create_prefix_lists(tgen, topo, addr_type, input_dict)
                 assert result is True, ("API: create_prefix_lists() :Failed "
                                         "\n Error: {}".format(result))
 
@@ -258,9 +257,14 @@ def create_common_configuration(tgen, topo, addr_type, router):
                 assert result is True, ("API: create_route_maps() :Failed"
                                         " \n Error: {}".format(result))
 
-    except Exception:
-        logger.error(traceback.format_exc())
-        return False
+    except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
+        errormsg = traceback.format_exc()
+        logger.error(errormsg)
+        return errormsg
 
     return True
 
@@ -273,15 +277,15 @@ class Interface:
     """Class for interface configuration"""
 
     def __init__(self, interface_name, interface_ip_addresses):
-	"""
-	Initialization function for interface configuration
-
-	Parameters
-	----------
-	* `interface_name` : name of interface
-	* `interface_ip_addresses` : ip address of interface
-
-	"""
+        """
+        Initialization function for interface configuration
+    
+            Parameters
+            ----------
+        * `interface_name` : name of interface
+        * `interface_ip_addresses` : ip address of interface
+    
+        """
         self.interface_name = interface_name
         self.interface_ip_addresses = interface_ip_addresses
 
@@ -290,15 +294,15 @@ class Interfaces:
     """Class for maintaining list of Interface type objects"""
 
     def __init__(self):
-	""" Initializatio function for Interface configuration"""
+        """ Initializatio function for Interface configuration"""
         self.interfaces = []
 
     def add_interface(self, interface_name, interface_ip_addresses):
         """
         Adds interface object to the list, if not present.
 
-	Parameters
-	----------
+    Parameters
+    ----------
         * `interface_name` : Name of the interface
         * `interface_ip_addresses` : Ip address to be associated with interface
         """
@@ -311,10 +315,11 @@ class Interfaces:
         interface = Interface(interface_name, interface_ip_addresses)
         self.interfaces.append(interface)
 
+
 def _print_interfaces_cfg(frr_cfg, interface):
     """
     Prints interface config to frr_json.conf file 
-     
+
     Parameters
     ----------
     * `frr_cfg` : file hander to frr_json.conf file
@@ -341,7 +346,7 @@ def interfaces_cfg(frr_cfg):
 
 class Nexthop:
     """Class for nexthop configuration
-   
+
     Parameters
     ---------- 
     * `ip`: Addresss for next-hop
@@ -353,7 +358,7 @@ class Nexthop:
 
     def __init__(self, ip, blackhole=False, admin_distance=1,
                  if_name=None, tag=None):
-	""" Initialization function for Next hop configuration"""
+        """ Initialization function for Next hop configuration"""
         self.ip = ip
         self.blackhole = blackhole
         self.admin_distance = admin_distance
@@ -366,7 +371,7 @@ class Route:
     """Class to add static route for ip-prefix"""
 
     def __init__(self, prefix):
-	""" Initialization function for Route configuration"""
+        """ Initialization function for Route configuration"""
         self.prefix = prefix
         self.nexthops = []
 
@@ -374,9 +379,9 @@ class Route:
                     if_name=None, tag=None):
         """
         Adds Nexthop instance to the list
-        
-	Parameters
-	----------
+
+    Parameters
+    ----------
         * `ip`: Addresss for next-hop
         * `blackhole`: Nexthop is a black hole or not
         * `admin_distance`: Distance for the next-hop
@@ -390,7 +395,7 @@ class Route:
 def static_rt_nh(nh):
     """
     Takes Nexthop object and returns formatted values
-    
+
     * `nh`: Nexthop instance 
 
     Returns:
@@ -416,7 +421,7 @@ def static_rt_nh(nh):
 def static_rt_cfg(frr_cfg):
     """
     Handler for writing static route configuration
-    
+
     * `frr_cfg`: File object for frr configuration
     """
     if frr_cfg.routing_pb.static_route is None:
@@ -437,20 +442,21 @@ def static_rt_cfg(frr_cfg):
                                             format(ip_cmd, prefix, nexthop,
                                                    str(tag), admin_dist))
 
+
 class Network:
     """Class to define Network details"""
 
     def __init__(self, afi, ipv4=None, ipv6=None, prefix_length=None):
-	"""
-	Initialization function for Network configuration
-	
-	Parameters
-	----------
-	* `afi` : address family identifier
-	* `ipv4` : address type ipv4
-	* `ipv6` : address type ipv6
-	* `prefix_length` : prefix length
-	"""
+        """
+        Initialization function for Network configuration
+    
+        Parameters
+        ----------
+        * `afi` : address family identifier
+        * `ipv4` : address type ipv4
+        * `ipv6` : address type ipv6
+        * `prefix_length` : prefix length
+        """
 
         self.afi = afi
         self.ipv4 = ipv4
@@ -462,15 +468,15 @@ class Address:
     """Class for Address type configuration"""
 
     def __init__(self, afi, ipv4=None, ipv6=None):
-	"""
-	Initialization function for Address family config
-
-        Parameters
-        ----------
-        * `afi` : address family identifier
-        * `ipv4` : address type ipv4
-        * `ipv6` : address type ipv6
-	"""
+        """
+        Initialization function for Address family config
+    
+            Parameters
+            ----------
+            * `afi` : address family identifier
+            * `ipv4` : address type ipv4
+            * `ipv6` : address type ipv6
+        """
 
         self.afi = afi
         self.ipv4 = ipv4
@@ -504,6 +510,7 @@ class Pfx:
 
 class PrefixList:
     """Class to save list of Pfx instances"""
+
     def __init__(self, name):
         self.prefix_list_uuid_name = name
         self.prefix = []
@@ -515,7 +522,7 @@ class PrefixList:
 def prefixlist_cfg(frr_cfg, addr_type):
     """
     Handler for writing prefix-list configuriation
-    
+
     * `frr_cfg`: File object for frr configuration
     * `addr_type`: ip type ipv4/ipv6
     """
@@ -558,9 +565,10 @@ def prefixlist_cfg(frr_cfg, addr_type):
 
 class RouteMapMatch:
     """Class for route-map configuration"""
+
     def __init__(self):
         self.tag = None
-	self.match_exact = None
+        self.match_exact = None
         self.prefix_list = []
         self.community_list = []
         self.large_community_list = []
@@ -596,7 +604,7 @@ class RouteMapSet:
                  as_path_prepend=False, community=None,
                  community_additive=None, weight=None, large_community=None,
                  set_action=None, med=None):
- 	""" Initialization function for Route map set config"""
+        """ Initialization function for Route map set config"""
 
         self.local_preference = local_preference
         self.metric = metric
@@ -611,16 +619,17 @@ class RouteMapSet:
 
 class RouteMapSeq:
     """Class for route-map data"""
-    def __init__(self, match, action, route_map_set):
-	"""
-	Initialization function for RouteMapSeq
 
-	Parameters
-	----------
-	* `match` : route-map match clause
-	* `action` : route-map action, permit/deny
-	* `route_map_set` : route-map set clause
-	"""
+    def __init__(self, match, action, route_map_set):
+        """
+        Initialization function for RouteMapSeq
+    
+        Parameters
+        ----------
+        * `match` : route-map match clause
+        * `action` : route-map action, permit/deny
+        * `route_map_set` : route-map set clause
+        """
 
         self.match = match
         self.action = action
@@ -629,12 +638,13 @@ class RouteMapSeq:
 
 class RouteMap:
     """Class for keeping list of RouteMapSeq instances"""
+
     def __init__(self, name):
         self.route_map_uuid_name = name
         self.route_map_seq = []
 
     def add_seq(self, match, action, route_map_set):
-	""" To add route-map new sequences """
+        """ To add route-map new sequences """
         rmap_seq = RouteMapSeq(match, action, route_map_set)
         self.route_map_seq.append(rmap_seq)
 
@@ -650,7 +660,7 @@ def get_action_from_route_map_seq(route_map_seq):
 def route_map_set_cfg(frr_cfg, route_map_set):
     """
     Handler for writing route-map configuration
-    
+
     * `frr_cfg: file object for frr configuration
     * `route_map_set: route-map object
     """
@@ -703,6 +713,7 @@ def handle_route_map_seq_set(frr_cfg, route_map_seq):
     if route_map_seq.route_map_set:
         route_map_set_cfg(frr_cfg, route_map_seq.route_map_set)
 
+
 def handle_match_prefix_list(frr_cfg, routemap, route_map_seq, addr_type):
     """ Configure route-map to match prefix-lists """
 
@@ -746,7 +757,7 @@ def handle_match_tag(frr_cfg, routemap, route_map_seq, addr_type):
 
 def handle_match_community_list(frr_cfg, routemap, route_map_seq, addr_type):
     """ Configure route-map to match community-lists """
-    
+
     name = routemap.route_map_uuid_name
     action = get_action_from_route_map_seq(route_map_seq)
     # MATCH
@@ -766,7 +777,7 @@ def handle_match_community_list(frr_cfg, routemap, route_map_seq, addr_type):
 def handle_match_large_community_list(frr_cfg, routemap, route_map_seq,
                                       addr_type):
     """ Configure route-map to match large-community-lists """
-    
+
     name = routemap.route_map_uuid_name
     action = get_action_from_route_map_seq(route_map_seq)
     # MATCH
@@ -778,8 +789,8 @@ def handle_match_large_community_list(frr_cfg, routemap, route_map_seq,
 
         # Match-exact case
         if route_map_seq.match.match_exact != None:
-            cmd.extend('match large-community {} exact-match \n'.\
-		format(community))
+            cmd.extend('match large-community {} exact-match \n'. \
+                       format(community))
         else:
             cmd.extend('match large-community {}\n'.format(community))
 
@@ -802,6 +813,7 @@ def handle_no_match_set_only(frr_cfg, routemap, route_map_seq):
     cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
     frr_cfg.route_maps.write(cmd)
 
+
 def routemap_cfg(frr_cfg, addr_type):
     """ Route-map configuration handler """
 
@@ -819,7 +831,8 @@ def routemap_cfg(frr_cfg, addr_type):
                                              addr_type)
                 # Match by tag
                 elif route_map_seq.match.tag:
-                    handle_match_tag(frr_cfg, routemap, route_map_seq)
+                    handle_match_tag(frr_cfg, routemap, route_map_seq,
+                                     addr_type)
                 # Match by Community
                 elif len(route_map_seq.match.community_list) > 0:
                     handle_match_community_list(frr_cfg, routemap,
@@ -868,6 +881,7 @@ def get_ip_cmd(addr_type):
     else:
         return 'ipv6'
 
+
 def IpPrefixMsg_to_str(addr, subnet=True):
     """
     Converts ip address to str with attaching mask to ip address
@@ -893,6 +907,7 @@ def IpAddressMsg_to_str(addr):
     else:
         return addr.ipv6
 
+
 def number_to_row(routerName):
     """
     Returns the number for the router.
@@ -901,6 +916,7 @@ def number_to_row(routerName):
     """
     return int(routerName[1:])
 
+
 def number_to_column(routerName):
     """
     Returns the number for the router.
@@ -908,6 +924,7 @@ def number_to_column(routerName):
     z23 = column 26 etc
     """
     return ord(routerName[0]) - 97
+
 
 def generate_ips(addr_type, start_ip, no_of_ips):
     """
@@ -940,6 +957,7 @@ def generate_ips(addr_type, start_ip, no_of_ips):
 
     return ipaddress_list
 
+
 def find_interface_with_greater_ip(topo, router):
     """
     Returns highest interface ip for ipv4/ipv6. If loopback is there then
@@ -964,10 +982,12 @@ def find_interface_with_greater_ip(topo, router):
             ip_address = topo['routers'][router]['links'][
                 destRouterLink]['ipv4'].split('/')[0]
             interfaces_list.append(ip_address)
+    
     if lo_exists:
         return sorted(lo_list)[-1]
-    else:
-        return sorted(interfaces_list)[-1]
+    
+    return sorted(interfaces_list)[-1]
+
 
 def start_topology(tgen):
     """
@@ -1015,6 +1035,7 @@ def start_topology(tgen):
     logger.info("Starting all routers once topology is created")
     tgen.start_router()
 
+
 def stop_topology(tgen):
     """
     It will stop topology and remove temporary dirs and files.
@@ -1034,6 +1055,7 @@ def stop_topology(tgen):
         except IOError as (errno, strerror):
             logger.error("I/O error({0}): {1}".format(errno, strerror))
 
+
 def stop_router(tgen, router):
     """
     Router's current config would be saved to /etc/frr/ for each deamon
@@ -1052,6 +1074,7 @@ def stop_router(tgen, router):
     # Stop router
     router_list[router].stop()
 
+
 def start_router(tgen, router):
     """
     Router will started and config would be loaded from /etc/frr/ for each
@@ -1066,6 +1089,7 @@ def start_router(tgen, router):
     # Router and its deamons would be started and config would be loaded to 
     # for each deamon from /etc/frr
     router_list[router].start()
+
 
 def load_config_to_router(tgen, routerName):
     """
@@ -1109,9 +1133,9 @@ def load_config_to_router(tgen, routerName):
                         for f_name in filenames:
                             if os.path.exists(
                                     '{}/{}/{}'.format(tmpdir, rname, f_name)):
-                                with open('{}/{}/{}'.
-                                          format(tmpdir, rname, f_name), 'r') as \
-                                        infile:
+                                with open('{}/{}/{}'.\
+                                    format(tmpdir, rname, f_name), 'r') as \
+                                           infile:
                                     for line in infile:
                                         cfg.write(line)
                 except IOError as err:
@@ -1120,16 +1144,16 @@ def load_config_to_router(tgen, routerName):
                     return False
 
                 command = '/usr/lib/frr/frr-reload.py  --input {}/{}/frr.sav' \
-                          ' --test {}/{}/frr.conf > {}'.format(tmpdir, rname, tmpdir,
-                                                               rname, dname)
+                          ' --test {}/{}/frr.conf > {}'.\
+                          format(tmpdir, rname, tmpdir, rname, dname)
                 result = os.system(command)
 
                 # Assert if command fail
                 if result != 0:
                     command_output = False
                     assert command_output, ('Command:{} is failed due to '
-                                            'non-zero exit code'.format(
-                                                command))
+                                            'non-zero exit code'.\
+                                            format(command))
 
                 f = open(dname, 'r')
                 delta = StringIO.StringIO()
@@ -1162,9 +1186,15 @@ def load_config_to_router(tgen, routerName):
                 if show_router_config:
                     logger.info(delta.getvalue())
                 delta.close()
+
     except Exception as e:
-        logger.error(traceback.format_exc())
-        return False
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
+        errormsg = traceback.format_exc()
+        logger.error(errormsg)
+        return errormsg
 
     logger.info('Exting API: load_common_config_to_router')
     return True
@@ -1212,10 +1242,16 @@ def create_interfaces_cfg(topo, curRouter):
                 interfaces.add_interface(interface_name, int_addresses)
 
     except Exception as e:
-        logger.error(traceback.format_exc())
-        return False
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
+        errormsg = traceback.format_exc()
+        logger.error(errormsg)
+        return errormsg
 
     return interfaces
+
 
 def add_static_route_for_loopback_interfaces(topo, curRouter, frrcfg):
     """
@@ -1232,45 +1268,46 @@ def add_static_route_for_loopback_interfaces(topo, curRouter, frrcfg):
 
     bgp_neighbors = topo['routers'][curRouter]['bgp']['bgp_neighbors']
     for bgp_neighbor in bgp_neighbors.keys():
- 	add_static_route = False
-        for destRouterLink, data2 in sorted(topo['routers'][
-            bgp_neighbor]['links'].iteritems()):
-	    # IPv4
-	    if 'ipv4' in data2:
+        add_static_route = False
+        for destRouterLink, data2 in sorted(topo['routers']\
+                                            [bgp_neighbor]['links'].iteritems()):
+            # IPv4
+            if 'ipv4' in data2:
                 if 'type' in data2 and data2['type'] == 'loopback':
-		    if 'add_static_route' in data2 and data2[
-                                'add_static_route'] == "yes":
-			add_static_route = True
+                    if 'add_static_route' in data2 and data2 \
+                            ['add_static_route'] == "yes":
+                        add_static_route = True
                         # Loopback interfaces
-                        lo_ipv4_addr = topo['routers'][bgp_neighbor][
-                           'links'][destRouterLink]['ipv4']
-                    
-		# Next hop address
-		if curRouter in destRouterLink:
-                    ipv4_next_hop = topo['routers'][bgp_neighbor]['links'][
-                    destRouterLink]['ipv4'].split("/")[0]
-	
-		    if add_static_route:	
-                        frrcfg.write("ip route " + lo_ipv4_addr + " " +
-	                         ipv4_next_hop + "\n")
-	    # IPv6
-	    if 'ipv6' in data2:
-                if 'type' in data2 and data2['type'] == 'loopback':
-		    if 'add_static_route' in data2 and data2[
-                                'add_static_route'] == "yes":
-			add_static_route = True
-                        # Loopback interfaces
-                        lo_ipv6_addr = topo['routers'][bgp_neighbor][
-                           'links'][destRouterLink]['ipv6']
+                        lo_ipv4_addr = topo['routers'][bgp_neighbor] \
+                            ['links'][destRouterLink]['ipv4']
 
-		# Next hop address
+                # Next hop address
                 if curRouter in destRouterLink:
-                    ipv6_next_hop = topo['routers'][bgp_neighbor]['links'][
-                    destRouterLink]['ipv6'].split("/")[0]
-		
-		    if add_static_route:	
-   	                frrcfg.write("ipv6 route " + lo_ipv6_addr + " " + 
-                                 ipv6_next_hop + "\n")
+                    ipv4_next_hop = topo['routers'][bgp_neighbor]['links'] \
+                        [destRouterLink]['ipv4'].split("/")[0]
+
+                    if add_static_route:
+                        frrcfg.write("ip route " + lo_ipv4_addr + " " +
+                                     ipv4_next_hop + "\n")
+            # IPv6
+            if 'ipv6' in data2:
+                if 'type' in data2 and data2['type'] == 'loopback':
+                    if 'add_static_route' in data2 and data2 \
+                            ['add_static_route'] == "yes":
+                        add_static_route = True
+                        # Loopback interfaces
+                        lo_ipv6_addr = topo['routers'][bgp_neighbor] \
+                            ['links'][destRouterLink]['ipv6']
+
+                # Next hop address
+                if curRouter in destRouterLink:
+                    ipv6_next_hop = topo['routers'][bgp_neighbor]['links'] \
+                        [destRouterLink]['ipv6'].split("/")[0]
+
+                    if add_static_route:
+                        frrcfg.write("ipv6 route " + lo_ipv6_addr + " " +
+                                     ipv6_next_hop + "\n")
+
 
 def create_static_routes(tgen, topo, addr_type, input_dict):
     """
@@ -1371,12 +1408,18 @@ def create_static_routes(tgen, topo, addr_type, input_dict):
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load configuration to router
                 load_config_to_router(tgen, router)
+
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
 
     return True
+
 
 def modify_admin_distance_for_static_routes(tgen, topo, input_dict):
     """
@@ -1435,6 +1478,10 @@ def modify_admin_distance_for_static_routes(tgen, topo, input_dict):
             load_config_to_router(tgen, router)
 
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
@@ -1544,13 +1591,19 @@ def create_prefix_lists(tgen, topo, addr_type, input_dict):
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
                 load_config_to_router(tgen, router)
+
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
 
     logger.info("Exiting lib API: create_prefix_lists()")
     return True
+
 
 def delete_prefix_lists(tgen, topo, addr_type, input_dict):
     """
@@ -1569,7 +1622,7 @@ def delete_prefix_lists(tgen, topo, addr_type, input_dict):
     input_dict = {
         'r1': {
             'prefix_lists': ['pf_list_1']
-    	}}
+        }}
     result = delete_prefix_lists('ipv4', input_dict, tgen, CWD, topo)
 
     Returns
@@ -1616,13 +1669,19 @@ def delete_prefix_lists(tgen, topo, addr_type, input_dict):
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
                 load_config_to_router(tgen, router)
+
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
 
     logger.info("Exiting lib API: delete_prefix_lists()")
     return True
+
 
 def modify_prefix_lists(tgen, topo, addr_type, input_dict):
     """
@@ -1642,7 +1701,7 @@ def modify_prefix_lists(tgen, topo, addr_type, input_dict):
          'r1': {
               'prefix_lists':{
                   'pf_ls_1': [{'seqid': '10', 'network': '10.0.0.0/8',\
-				 'le': '32', 'action': 'permit'}]
+                 'le': '32', 'action': 'permit'}]
                }}}
     result = modify_prefix_lists('ipv4', input_dict_1, tgen, CWD, topo)
 
@@ -1712,12 +1771,17 @@ def modify_prefix_lists(tgen, topo, addr_type, input_dict):
             load_config_to_router(tgen, router)
 
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
 
     logger.info("Exiting lib API: modify_prefix_lists()")
     return True
+
 
 def create_route_maps(tgen, topo, addr_type, input_dict):
     """
@@ -1870,7 +1934,7 @@ def create_route_maps(tgen, topo, addr_type, input_dict):
                                         match_criteria]
                                     for prefix_list in pb_prefix_list[:]:
                                         prefix_lists = []
-                                        if prefix_list.prefix_list_uuid_name\
+                                        if prefix_list.prefix_list_uuid_name \
                                                 == pfx_list:
                                             prefix_lists.append(prefix_list)
                                             match.prefix_list = prefix_lists
@@ -1889,10 +1953,10 @@ def create_route_maps(tgen, topo, addr_type, input_dict):
                                     large_community_lists = []
                                     large_communities = rmap_dict["match"][
                                         match_criteria]
-					
+
                                     if "match_exact" in rmap_dict["match"]:
-                                        match.match_exact = rmap_dict["match"][
-							    "match_exact"]
+                                        match.match_exact = rmap_dict["match"] \
+                                            ["match_exact"]
                                     else:
                                         match.match_exact = None
 
@@ -1919,13 +1983,19 @@ def create_route_maps(tgen, topo, addr_type, input_dict):
                 frr_cfg[router].print_common_config_to_file(topo)
                 # Load config to router
                 load_config_to_router(tgen, router)
+
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
 
     logger.info("Exiting lib API: create_route_maps()")
     return True
+
 
 def delete_route_maps(tgen, topo, addr_type, input_dict):
     """
@@ -1977,7 +2047,12 @@ def delete_route_maps(tgen, topo, addr_type, input_dict):
             frr_cfg[router].print_common_config_to_file(topo)
             # Load config to router
             load_config_to_router(tgen, router)
+
     except Exception as e:
+        # handle any exception
+        logger.error("Error %s occured. Arguments %s.", e.message, e.args)
+
+        # Traceback 
         errormsg = traceback.format_exc()
         logger.error(errormsg)
         return errormsg
@@ -2012,18 +2087,19 @@ def verify_rib(tgen, addr_type, dut, input_dict, next_hop=None, protocol=None):
     network command. Following are input_dicts to create static routes 
     and advertise networks using network command. Any one of the input_dict
     can be passed to verify_rib() to verify routes in DUT's RIB.
-   
+
     # Creating static routes for r1
     input_dict = {
         "r1": {
             "static_routes": [{"network": "10.0.20.1/32", "no_of_ip": 9, \
-		"admin_distance": 100, "next_hop": "10.0.0.2", "tag": 4001}]
+        "admin_distance": 100, "next_hop": "10.0.0.2", "tag": 4001}]
         }}
     # Advertising networks using network command in router r1
     input_dict = {
-        'r1': {
-            'advertise_networks': [{'start_ip': '20.0.0.0/32', 'no_of_network': 10},
-                                   {'start_ip': '30.0.0.0/32'}]
+       'r1': {
+          'advertise_networks': [{'start_ip': '20.0.0.0/32', 
+                                  'no_of_network': 10},
+                                  {'start_ip': '30.0.0.0/32'}]
         }}
     # Verifying ipv4 routes in router r1 learned via BGP
     dut = 'r2'
@@ -2088,16 +2164,15 @@ def verify_rib(tgen, addr_type, dut, input_dict, next_hop=None, protocol=None):
                             found_routes.append(st_rt)
 
                             if next_hop:
-                                if rib_routes_json[st_rt][0]['nexthops'][0][
-                                    'ip'] \
-                                        == next_hop:
+                                if rib_routes_json[st_rt][0]['nexthops'] \
+                                        [0]['ip'] == next_hop:
                                     nh_found = True
                                 else:
                                     errormsg = ("Nexthop {} is Missing for {}"
                                                 " route {} in RIB of router"
-                                                " {}\n".format(
-                                                    next_hop, protocol,
-                                                    st_rt, dut))
+                                                " {}\n".format(next_hop, 
+                                                               protocol,
+                                                               st_rt, dut))
                                     return errormsg
                         else:
                             missing_routes.append(st_rt)
@@ -2106,7 +2181,7 @@ def verify_rib(tgen, addr_type, dut, input_dict, next_hop=None, protocol=None):
                                 " router {}\n".format(next_hop, dut))
 
                 if not st_found and len(missing_routes) > 0:
-                    errormsg = "Missing route in RIB of router {}, routes: {}"\
+                    errormsg = "Missing route in RIB of router {}, routes: {}" \
                                " \n".format(dut, missing_routes)
                     return errormsg
 
@@ -2116,8 +2191,8 @@ def verify_rib(tgen, addr_type, dut, input_dict, next_hop=None, protocol=None):
             if 'advertise_networks' in input_dict[routerInput]:
                 found_routes = []
                 missing_routes = []
-                advertise_network = input_dict[routerInput][
-                    'advertise_networks']
+                advertise_network = input_dict[routerInput]\
+                                    ['advertise_networks']
                 found = False
                 for advertise_network_dict in advertise_network:
                     start_ip = advertise_network_dict['start_ip']
@@ -2148,6 +2223,7 @@ def verify_rib(tgen, addr_type, dut, input_dict, next_hop=None, protocol=None):
     logger.info("Exiting lib API: verify_rib()")
     return True
 
+
 def verify_admin_distance_for_static_routes(tgen, addr_type, input_dict):
     """
     API to verify admin distance for static routes as defined in input_dict/
@@ -2170,7 +2246,7 @@ def verify_admin_distance_for_static_routes(tgen, addr_type, input_dict):
                 'next_hop': '10.0.0.2'
             }}}
     result = verify_admin_distance_for_static_routes(tgen, input_dict)
- 
+
     Returns
     -------
     errormsg(str) or True
@@ -2188,40 +2264,41 @@ def verify_admin_distance_for_static_routes(tgen, addr_type, input_dict):
                 command = "show ip route json"
             else:
                 command = "show ipv6 route json"
- 
+
             show_ip_route_json = rnode.vtysh_cmd(command, isjson=True)
             for static_route in input_dict[dut].keys():
                 logger.info('Verifying admin distance for static route {}'
                             ' under dut {}:'.format(static_route, router))
                 next_hop = input_dict[dut][static_route]['next_hop']
-                admin_distance = input_dict[dut][static_route][
-                    'admin_distance']
+                admin_distance = input_dict[dut][static_route]\
+                                 ['admin_distance']
                 route_data = show_ip_route_json[static_route][0]
                 if static_route in show_ip_route_json:
                     if route_data['nexthops'][0]['ip'] == next_hop:
                         if route_data['distance'] != admin_distance:
                             errormsg = ('Verification failed: admin distance'
                                         ' for static route {} under dut {},'
-                                        ' found:{} but expected:{}'.format(
-                                            static_route, router,
-                                            route_data['distance'],
-                                            admin_distance))
+                                        ' found:{} but expected:{}'.\
+                                        format(static_route, router,
+                                               route_data['distance'],
+                                               admin_distance))
                             return errormsg
                         else:
                             logger.info('Verification successful: admin'
                                         ' distance for static route {} under'
-                                        ' dut {}, found:{}'.format(
-                                            static_route, router,
-                                            route_data['distance']))
+                                        ' dut {}, found:{}'.\
+                                        format(static_route, router,
+                                               route_data['distance']))
 
                 else:
                     errormsg = ('Static route {} not found in '
-                                'show_ip_route_json for dut {}'.
+                                'show_ip_route_json for dut {}'.\
                                 format(static_route, router))
                     return errormsg
 
     logger.info("Exiting lib API: verify_admin_distance_for_static_routes()")
     return True
+
 
 def verify_prefix_lists(tgen, addr_type, input_dict):
     """
@@ -2272,8 +2349,7 @@ def verify_prefix_lists(tgen, addr_type, input_dict):
     logger.info("Exiting lib API: verify_prefix_lissts()")
     return True
 
-
-def verify_route_maps(tgen, addr_type, input_dict):
+def verify_route_maps(tgen, input_dict):
     """
     Running "show route-map" command and verifying given route-map
     is present in router.
@@ -2281,7 +2357,6 @@ def verify_route_maps(tgen, addr_type, input_dict):
     Parameters
     ----------
     * `tgen` : topogen object
-    * `addr_type` : ip type, ipv4/ipv6
     * `input_dict`: data to verify prefix lists
 
     Usage
@@ -2292,7 +2367,7 @@ def verify_route_maps(tgen, addr_type, input_dict):
             'route_maps': ['rmap_1', 'rmap_2']
         }
     }
-    result = verify_route_maps('ipv4', input_dict, tgen)
+    result = verify_route_maps(tgen, input_dict)
 
     Returns
     -------
