@@ -100,8 +100,6 @@ def setup_module(mod):
     tgen = Topogen(TemplateTopo, mod.__name__)
     # ... and here it calls Mininet initialization functions.
 
-    net = Mininet(controller=None, topo=topo)
-
     # Starting topology, create tmp files which are loaded to routers
     #  to start deamons and then start routers
     start_topology(tgen)
@@ -145,8 +143,10 @@ def test_bgp_convergence():
         pytest.skip(tgen.errors)
 
     # Api call verify whether BGP is converged
-    bgp_convergence = verify_bgp_convergence('ipv4', tgen, topo)
-    if bgp_convergence != True: assert False, "test_bgp_convergence failed.. \n Error: {}".format(bgp_convergence)
+    bgp_convergence = verify_bgp_convergence(tgen, topo, 'ipv4')
+    if bgp_convergence != True: 
+        assert False, "test_bgp_convergence failed.. \n Error: {}".\
+        format(bgp_convergence)
 
     logger.info("BGP is converged successfully \n")
 
@@ -166,12 +166,16 @@ def test_static_routes():
     tc_name = inspect.stack()[0][3]
     logger.info("Testcase started: {} \n".format(tc_name))
 
-    # Static routes are created as part of initial configuration, verifying RIB
+    # Static routes are created as part of initial configuration,
+    # verifying RIB
     dut = 'r3'
     next_hop = '10.0.0.1'
     input_dict = topo["routers"]
-    result = verify_rib('ipv4', dut, tgen, input_dict, next_hop = next_hop)
-    if result != True : assert False, "Testcase " + tc_name + " :Failed \n Error: {}".format(result)
+    result = verify_rib(tgen, 'ipv4', dut, input_dict, 
+                        next_hop = next_hop)
+    if result != True: 
+        assert False, "Testcase " + tc_name + " :Failed \n Error: {}".\
+        format(result)
     
     logger.info("Testcase " + tc_name + " :Passed \n")
 
