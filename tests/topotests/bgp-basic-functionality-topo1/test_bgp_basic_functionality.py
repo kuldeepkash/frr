@@ -318,8 +318,8 @@ def test_bgp_timers_functionality():
             "bgp": {
                 "bgp_neighbors": {
                     "r2": {
-                        "keepalivetimer": 5,
-                        "holddowntimer": 15,
+                        "keepalivetimer": 60,
+                        "holddowntimer": 180,
                     }}}}}
     result = modify_bgp_timers(tgen, topo, 'ipv4', input_dict)
     if result != True:
