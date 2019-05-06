@@ -47,6 +47,7 @@ IPv6_UNICAST = 3
 FRRCFG_FILE = 'frr_json.conf'
 frr_cfg = {}
 
+error_list = ['% Malformed community-list value']
 ####
 CD = os.path.dirname(os.path.realpath(__file__))
 pytestini_path = os.path.join(CD, '../pytest.ini')
@@ -366,7 +367,6 @@ class Nexthop:
         self.tag = tag
 
 
-# Helper 
 class Route:
     """Class to add static route for ip-prefix"""
 
@@ -416,6 +416,7 @@ def static_rt_nh(nh):
     if nh.tag:
         tag = nh.tag
     return nexthop, admin_dist, tag
+
 
 
 def static_rt_cfg(frr_cfg):
@@ -620,20 +621,23 @@ class RouteMapSet:
 class RouteMapSeq:
     """Class for route-map data"""
 
-    def __init__(self, match, action, route_map_set):
-        """
-        Initialization function for RouteMapSeq
-    
-        Parameters
-        ----------
-        * `match` : route-map match clause
-        * `action` : route-map action, permit/deny
-        * `route_map_set` : route-map set clause
-        """
+    def __init__(self, match, action, route_map_set, seq_id=None):
+	"""
+	Initialization function for RouteMapSeq
+
+	Parameters
+	----------
+	* `match` : route-map match clause
+	* `action` : route-map action, permit/deny
+	* `route_map_set` : route-map set clause
+        * `seq_id` : sequence id 
+	"""
 
         self.match = match
         self.action = action
         self.route_map_set = route_map_set
+        self.seq_id = seq_id
+
 
 
 class RouteMap:
@@ -643,9 +647,9 @@ class RouteMap:
         self.route_map_uuid_name = name
         self.route_map_seq = []
 
-    def add_seq(self, match, action, route_map_set):
+    def add_seq(self, match, action, route_map_set, seq_id=None):
         """ To add route-map new sequences """
-        rmap_seq = RouteMapSeq(match, action, route_map_set)
+        rmap_seq = RouteMapSeq(match, action, route_map_set, seq_id)
         self.route_map_seq.append(rmap_seq)
 
 
@@ -681,13 +685,17 @@ def route_map_set_cfg(frr_cfg, route_map_set):
 
     # AS Path Prepend
     if route_map_set.as_path_prepend:
-        cmd.extend('set asp-path prepend {} \n'.format(
+        cmd.extend('set as-path prepend {} \n'.format(
             route_map_set.as_path_prepend))
 
     # Community
     if route_map_set.community:
-        cmd.extend('set community {} {} {} \n'.format(
-            route_map_set.community, additive, route_map_set.set_action))
+        if route_map_set.set_action:
+            cmd.extend('set community {} {} {} \n'.format(
+                route_map_set.community, additive, route_map_set.set_action))
+        else:
+            cmd.extend('set community {} {} \n'.format(
+                route_map_set.community, additive))
 
     # Large-Community with delete
     if route_map_set.set_action and route_map_set.set_action == "delete":
@@ -738,7 +746,8 @@ def handle_match_prefix_list(frr_cfg, routemap, route_map_seq, addr_type):
 
     # SET
     handle_route_map_seq_set(frr_cfg, route_map_seq)
-    cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
+    frr_cfg.route_maps.write('! END of {} - {}\n'.format(
+        name, str(seq_id)))
 
 
 def handle_match_tag(frr_cfg, routemap, route_map_seq, addr_type):
@@ -757,8 +766,10 @@ def handle_match_tag(frr_cfg, routemap, route_map_seq, addr_type):
     frr_cfg.route_maps.writelines(cmd)
 
     # SET
+    frr_cfg.route_maps.writelines(cmd)
     handle_route_map_seq_set(frr_cfg, route_map_seq)
-    cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
+    frr_cfg.route_maps.write('! END of {} - {}\n'.format(
+        name, str(seq_id)))
 
 
 def handle_match_community_list(frr_cfg, routemap, route_map_seq, addr_type):
@@ -778,8 +789,9 @@ def handle_match_community_list(frr_cfg, routemap, route_map_seq, addr_type):
         frr_cfg.route_maps.writelines(cmd)
 
         # SET
+        frr_cfg.route_maps.writelines(cmd)
         handle_route_map_seq_set(frr_cfg, route_map_seq)
-        cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
+        frr_cfg.route_maps.write('! END of {} - {}\n'.format(name, str(seq_id)))
 
 
 def handle_match_large_community_list(frr_cfg, routemap, route_map_seq,
@@ -805,9 +817,10 @@ def handle_match_large_community_list(frr_cfg, routemap, route_map_seq,
 	# Write route-map match config
         frr_cfg.route_maps.writelines(cmd)
 
+        frr_cfg.route_maps.writelines(cmd)
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
-        cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
+        frr_cfg.route_maps.write('! END of {} - {}\n'.format(name, str(seq_id)))
 
 
 def handle_no_match_set_only(frr_cfg, routemap, route_map_seq):
@@ -822,8 +835,11 @@ def handle_no_match_set_only(frr_cfg, routemap, route_map_seq):
     frr_cfg.route_maps.writelines(cmd)
 
     # SET
+    frr_cfg.route_maps.write('route-map {} {} {}\n'.format(name, action,
+                                                           str(seq_id)))
     handle_route_map_seq_set(frr_cfg, route_map_seq)
-    cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
+    frr_cfg.route_maps.write('! END of {} - {}\n'.format(
+        name, str(seq_id)))
 
 
 def routemap_cfg(frr_cfg, addr_type):
@@ -1183,7 +1199,10 @@ def load_config_to_router(tgen, routerName):
                     delta.write('\n')
 
                 delta.write('end\n')
-                router.vtysh_multicmd(delta.getvalue())
+                output = router.vtysh_multicmd(delta.getvalue())
+                for out_err in error_list:
+                    if out_err in output:
+                        raise Exception('InvalidCliError: %s' % out_err)
                 logger.info('New configuration for router {}:'.format(rname))
                 delta.close()
                 delta = StringIO.StringIO()
@@ -1872,6 +1891,8 @@ def create_route_maps(tgen, topo, addr_type, input_dict):
 
                 for rmap_name, rmap_value in \
                         input_dict[router]["route_maps"].iteritems():
+                    rmap = RouteMap(rmap_name)
+                    frr_cfg[router].routing_pb.route_maps.append(rmap)
                     for rmap_dict in rmap_value:
                         rmap_action = rmap_dict["action"]
 
@@ -1880,8 +1901,10 @@ def create_route_maps(tgen, topo, addr_type, input_dict):
                         else:
                             rmap_action = DENY
 
-                        rmap = RouteMap(rmap_name)
-                        frr_cfg[router].routing_pb.route_maps.append(rmap)
+                        if 'seq_id' in rmap_dict:
+                            seq_id = rmap_dict['seq_id']
+                        else:
+                            seq_id = None
 
                         # Verifying if SET criteria is defined
                         if 'set' in rmap_dict:
@@ -1986,7 +2009,8 @@ def create_route_maps(tgen, topo, addr_type, input_dict):
                                                  set_criteria)
                         else:
                             match = None
-                            rmap.add_seq(match, rmap_action, set_criteria)
+                            rmap.add_seq(match, rmap_action, set_criteria,
+                                         seq_id)
 
                 interfaces_cfg(frr_cfg[router])
                 static_rt_cfg(frr_cfg[router])
@@ -2409,3 +2433,9 @@ def verify_route_maps(tgen, input_dict):
 
     logger.info("Exiting lib API: verify_route_maps()")
     return True
+
+
+def write_test_header(tc_name):
+    logger.info('*'*(len(tc_name)+11))
+    logger.info('Testcase : {}'.format(tc_name))
+    logger.info('*'*(len(tc_name)+11))
