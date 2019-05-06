@@ -560,7 +560,7 @@ def prefixlist_cfg(frr_cfg, addr_type):
                     cmd = 'ipv6 prefix-list {} seq {} {} {}\n'.format(
                         name, str(prefix.seq_id), prefix.action, network)
 
-            frr_cfg.prefix_lists.write(cmd)
+            frr_cfg.prefix_lists.writelines(cmd)
 
 
 class RouteMapMatch:
@@ -692,7 +692,7 @@ def route_map_set_cfg(frr_cfg, route_map_set):
     # Large-Community with delete
     if route_map_set.set_action and route_map_set.set_action == "delete":
         if route_map_set.large_community:
-            cmd.extend('set large-comm-list {} {}\n'.format(
+            cmd.extend('set large-comm-list {} {} \n'.format(
                 route_map_set.large_community, route_map_set.set_action))
     else:
         # Large-Community
@@ -704,7 +704,7 @@ def route_map_set_cfg(frr_cfg, route_map_set):
     if route_map_set.weight:
         cmd.extend('set weigh {}'.format(str(route_map_set.weight)))
 
-    frr_cfg.route_maps.write(cmd)
+    frr_cfg.route_maps.writelines(cmd)
 
 
 def handle_route_map_seq_set(frr_cfg, route_map_seq):
@@ -732,11 +732,13 @@ def handle_match_prefix_list(frr_cfg, routemap, route_map_seq, addr_type):
     for prefix_list in route_map_seq.match.prefix_list:
         cmd.extend('match {} address prefix-list {}\n'.format(
             protocol, prefix_list.prefix_list_uuid_name))
+
+    # Write route-map match config
+    frr_cfg.route_maps.writelines(cmd)
+
     # SET
     handle_route_map_seq_set(frr_cfg, route_map_seq)
     cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
-
-    frr_cfg.route_maps.write(cmd)
 
 
 def handle_match_tag(frr_cfg, routemap, route_map_seq, addr_type):
@@ -746,13 +748,17 @@ def handle_match_tag(frr_cfg, routemap, route_map_seq, addr_type):
     action = get_action_from_route_map_seq(route_map_seq)
 
     seq_id = frr_cfg.get_route_map_seq_id()
+
+    # MATCH
     cmd = ['route-map {} {} {}\n'.format(name, action, str(seq_id))]
     cmd.extend('match tag {}\n'.format(str(route_map_seq.match.tag)))
+
+    # Write route-map match config
+    frr_cfg.route_maps.writelines(cmd)
+
     # SET
     handle_route_map_seq_set(frr_cfg, route_map_seq)
     cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
-
-    frr_cfg.route_maps.write(cmd)
 
 
 def handle_match_community_list(frr_cfg, routemap, route_map_seq, addr_type):
@@ -767,11 +773,13 @@ def handle_match_community_list(frr_cfg, routemap, route_map_seq, addr_type):
         seq_id = frr_cfg.get_route_map_seq_id()
         cmd.extend('route-map {} {} {}\n'.format(name, action, str(seq_id)))
         cmd.extend('match community {}\n'.format(community))
+
+        # Write route-map match config
+        frr_cfg.route_maps.writelines(cmd)
+
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
-
-    frr_cfg.route_maps.write(cmd)
 
 
 def handle_match_large_community_list(frr_cfg, routemap, route_map_seq,
@@ -789,16 +797,17 @@ def handle_match_large_community_list(frr_cfg, routemap, route_map_seq,
 
         # Match-exact case
         if route_map_seq.match.match_exact != None:
-            cmd.extend('match large-community {} exact-match \n'. \
+            cmd.extend('match large-community {} exact-match \n'.\
                        format(community))
         else:
-            cmd.extend('match large-community {}\n'.format(community))
+            cmd.extend('match large-community {} \n'.format(community))
+
+	# Write route-map match config
+        frr_cfg.route_maps.writelines(cmd)
 
         # SET
         handle_route_map_seq_set(frr_cfg, route_map_seq)
         cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
-
-    frr_cfg.route_maps.write(cmd)
 
 
 def handle_no_match_set_only(frr_cfg, routemap, route_map_seq):
@@ -808,10 +817,13 @@ def handle_no_match_set_only(frr_cfg, routemap, route_map_seq):
     action = get_action_from_route_map_seq(route_map_seq)
     seq_id = frr_cfg.get_route_map_seq_id()
     cmd = ['route-map {} {} {}\n'.format(name, action, str(seq_id))]
+
+    # Write route-map sequence config
+    frr_cfg.route_maps.writelines(cmd)
+
     # SET
     handle_route_map_seq_set(frr_cfg, route_map_seq)
     cmd.extend('! END of {} - {}\n'.format(name, str(seq_id)))
-    frr_cfg.route_maps.write(cmd)
 
 
 def routemap_cfg(frr_cfg, addr_type):

@@ -9,8 +9,8 @@
 {
     "r1": {
 	"links": {
-	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
-                "r2": {"ipv4": "auto", "ipv6": "auto"},
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback", "add_static_route": "yes"},
+                "r2": {"ipv4": "auto", "ipv6": "auto"}, 
                 "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
         "bgp": { 
@@ -19,8 +19,6 @@
 		"ecmp": 4,
                 "bgp_neighbors": {
                     "r2": {
-			"keepalivetimer": 5,
-			"holddowntimer": 15,
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "r1",
@@ -34,7 +32,7 @@
 			}}}}},
     "r2": {
         "links": {
-	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback", "add_static_route": "yes"},
 	        "r1": {"ipv4": "auto", "ipv6": "auto"},
                 "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
@@ -55,7 +53,7 @@
 			}}}}},
     "r3": {
         "links": {
-	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback", "add_static_route": "yes"},
 	        "r1": {"ipv4": "auto", "ipv6": "auto"},
                 "r2": {"ipv4": "auto", "ipv6": "auto"},
                 "r4": {"ipv4": "auto", "ipv6": "auto"}
@@ -83,7 +81,7 @@
 			}}}}},
     "r4": {
         "links": {
-	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback"},
+	        "lo": {"ipv4": "auto", "ipv6": "auto", "type": "loopback", "add_static_route": "yes"},
 	        "r3": {"ipv4": "auto", "ipv6": "auto"}
         },
         "bgp": {

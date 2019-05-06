@@ -674,7 +674,7 @@ def redist_cfg(bgp_cfg, addr_type):
                 af_modifier = IPv4_UNICAST
             else:
                 af_modifier = IPv6_UNICAST
-            if bgp_cfg.routing_pb.redistribute_static:
+            if bgp_cfg.routing_pb.redistribute_static != None:
                 bgp_cfg.bgp_address_family[af_modifier].write(
                     'redistribute static \n')
             elif bgp_cfg.routing_pb.redistribute_static_route_map != None:
@@ -682,7 +682,7 @@ def redist_cfg(bgp_cfg, addr_type):
                     'redistribute static route-map {} \n'.\
                     format(bgp_cfg.routing_pb.redistribute_static_route_map))
 
-            if bgp_cfg.routing_pb.redistribute_connected:
+            if bgp_cfg.routing_pb.redistribute_connected != None:
                 bgp_cfg.bgp_address_family[af_modifier].write(
                     'redistribute connected\n')
             elif bgp_cfg.routing_pb.redistribute_connected_route_map != None:
@@ -1209,14 +1209,14 @@ def redistribute_static_routes(tgen, topo, addr_type, input_dict):
                 for redist_dict in redist:
                     for key, value in redist_dict.items():
                         if key == 'static':
-                            if value or value == "true":
+                            if value == True or value == "true":
                                 bgp_cfg[router].routing_pb.redistribute_static = \
                                     True
                             if isinstance(value, dict):
                                 bgp_cfg[router].routing_pb. \
                                     redistribute_static_route_map = value['route-map']
                         if key == 'connected':
-                            if value or value == "true":
+                            if value == True or value == "true":
                                 bgp_cfg[router].routing_pb.redistribute_connected = \
                                     True
                             if isinstance(value, dict):
@@ -2760,7 +2760,8 @@ def verify_bgp_community(tgen, addr_type, dut, network, input_dict=None):
             show_bgp_json = rnode.vtysh_cmd(cmd, isjson=True)
             logger.info(show_bgp_json)
             if "paths" not in show_bgp_json:
-                return "No prefix path found on router: {}".format(dut)
+                return "Prefix {} not found in BGP table of router: {}".\
+                        format(net, dut)
 
             as_paths = show_bgp_json["paths"]
             found = False
