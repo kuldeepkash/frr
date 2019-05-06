@@ -21,14 +21,14 @@
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r1",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                },
                "r3":{  
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r1",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                }
             }
@@ -47,14 +47,14 @@
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r2",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                },
                "r3":{  
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r2",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                }
             }
@@ -74,21 +74,21 @@
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r3",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                },
                "r2":{  
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r3",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                },
                "r4":{  
                   "remote_as":"200",
                   "peer":{  
                      "dest_link":"r3",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                }
             }
@@ -106,7 +106,7 @@
                   "remote_as":"100",
                   "peer":{  
                      "dest_link":"r4",
-                     "addr_type":"ipv4"
+                     "addr_type":["ipv4"]
                   }
                }
             }

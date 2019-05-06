@@ -165,13 +165,12 @@ def build_config_from_json(tgen, topo):
         # Create and load routers common configurations, ex- interface_config, 
         # static_routes, prefix_lits and route_maps...etc  to router
         result = create_common_configuration(tgen, topo, 'ipv4', curRouter)
-        if result != True: assert False, \
+        assert result is True, \
             "topojson.create_common_configuration() :Failed \n Error: {}". \
                 format(result)
 
         # Create and load bgp and community_list configuration to router
-        result = create_bgp_configuration(tgen, topo, 'ipv4', curRouter)
-        if result != True: assert False, \
+        result = create_bgp_configuration(tgen, topo, curRouter)
+        assert result is True, \
             "topojson.create_bgp_configuration() :Failed \n Error: {}". \
                 format(result)
-#
