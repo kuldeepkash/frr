@@ -20,13 +20,13 @@
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "r1",
-			    "addr_type": "ipv4"
+			    "addr_type": ["ipv4"]
 			}},
                     "r3": {
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "r1",
-			    "addr_type": "ipv4"
+			    "addr_type": ["ipv4"]
 			}}}}},
     "r2": {
         "links": {
@@ -41,13 +41,13 @@
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "r2",
-			    "addr_type": "ipv4"
+			    "addr_type": ["ipv4"]
 			}},
                     "r3": {
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "r2",
-			    "addr_type": "ipv4"
+			    "addr_type": ["ipv4"]
 			}}}
         },
 	"static_routes": [{"network": "100.0.20.1/32", "no_of_ip": 9, "admin_distance": 100, "next_hop": "10.0.0.1", "tag": 4001}],
@@ -66,12 +66,12 @@
                         "remote_as": "100",
                         "peer": {
                             "dest_link": "r3",
-                            "addr_type": "ipv4"
+                            "addr_type": ["ipv4"]
 			}},
                     "r1": {
                         "remote_as": "100",
                         "peer": {
                             "dest_link": "r3",
-                            "addr_type": "ipv4"
+                            "addr_type": ["ipv4"]
                         }}}}}
 }}

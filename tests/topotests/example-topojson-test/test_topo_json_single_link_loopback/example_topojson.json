@@ -19,7 +19,7 @@
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "lo",
-			    "addr_type": "ipv4",
+			    "addr_type": ["ipv4"],
 			    "source_link": "lo"
 			}}}}},
     "r2": {
@@ -35,14 +35,14 @@
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "lo",
-			    "addr_type": "ipv4",
+			    "addr_type": ["ipv4"],
 			    "source_link": "lo"
 			}},
                     "r3": {
                         "remote_as": "100",
                         "peer": {
 			    "dest_link": "lo",
-			    "addr_type": "ipv4",
+			    "addr_type": ["ipv4"],
 			    "source_link": "lo"
 			}}}
         },
@@ -61,7 +61,7 @@
                         "remote_as": "100",
                         "peer": {
                             "dest_link": "lo",
-                            "addr_type": "ipv4",
+                            "addr_type": ["ipv4"],
 			    "source_link": "lo"
                         }}}}}
 }}
