@@ -73,6 +73,8 @@ if config.has_option('topogen', 'frrtest_log_dir'):
     time_stamp = datetime.time(datetime.now())
     logfile_name = "frr_test_bgp_"
     frrtest_log_file = frrtest_log_dir + logfile_name + str(time_stamp)
+    print("frrtest_log_file..", frrtest_log_file)
+
 
     logger = logger_config.get_logger(name='test_execution_logs',
                                       log_level=loglevel,
@@ -710,7 +712,7 @@ def route_map_set_cfg(frr_cfg, route_map_set):
 
     # Weight
     if route_map_set.weight:
-        cmd.extend('set weigh {}'.format(str(route_map_set.weight)))
+        cmd.extend('set weight {} \n'.format(str(route_map_set.weight)))
 
     frr_cfg.route_maps.writelines(cmd)
 
@@ -1040,6 +1042,7 @@ def start_topology(tgen):
             # Creating rouer named dir and empty zebra.conf bgpd.conf files
             # inside the current directory
             os.mkdir('{}'.format(rname))
+            os.system('chmod -R go+rw {}'.format(rname))
             os.chdir('{}/{}'.format(tmpdir, rname))
             os.system('touch zebra.conf bgpd.conf')
 
@@ -2377,7 +2380,7 @@ def verify_prefix_lists(tgen, addr_type, input_dict):
                 if prefix_list in show_prefix_list:
                     errormsg = ("Prefix list {} is not deleted from router"
                                 " {}".format(prefix_list, router))
-                return errormsg
+                    return errormsg
 
             logger.info("Prefix list {} is/are deleted successfully from"
                         "router {}".format(prefix_lists, dut))

@@ -3009,7 +3009,7 @@ def verify_create_community_list(tgen, input_dict):
                     logger.info(show_bgp_community)
 
                     # Verify community list and type
-                    if comm_type in show_bgp_community and comm_type in \
+                    if comm_name in show_bgp_community and comm_type in \
                             show_bgp_community:
                         logger.info("BGP {} large-community-list {} is created". \
                                     format(comm_type, comm_name))
